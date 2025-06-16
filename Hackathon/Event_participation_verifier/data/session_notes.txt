@@ -1,0 +1,6 @@
+Session: AI-Powered Development
+- Speaker: Dr. Anita Verma
+- Key Points:
+  * Use of LLMs in code generation.
+  * Building ethical AI systems.
+  * Automating unit tests with AI.
