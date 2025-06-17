@@ -1,0 +1,33 @@
+
+Google DevFest 2025 - Official Event Content
+
+Overview:
+Google DevFest 2025 is a global event bringing together developers to learn, share, and connect around Google technologies.
+
+Keynote:
+- Sundar Pichai: The Future of AI in Google Ecosystem
+  * Emphasis on Responsible AI and Developer Enablement.
+
+Sessions & Topics:
+1. Dr. Anita Verma - "AI-Powered Development"
+   - Use of large language models (LLMs) in enhancing IDEs.
+   - Automating code generation and test writing.
+   - Ethical frameworks in AI product design.
+
+2. Raj Malhotra - "Progressive Web Apps in 2025"
+   - Advances in React and Next.js.
+   - Offline capabilities and performance optimization.
+   - Integrating WebAssembly for speed.
+
+3. Priya Shenoy - "Firebase for Scalable Apps"
+   - Real-time syncing with Firestore.
+   - Authentication strategies.
+   - Cloud Functions best practices.
+
+Workshops:
+- TensorFlow 3.0 Hands-on Lab
+- Building Full-stack Apps with Firebase and Flutter
+
+Resources:
+- https://developers.google.com/events/devfest
+- https://www.youtube.com/googledevelopers

@@ -1,0 +1,11 @@
+Learned about responsible AI from Sundar Pichai’s keynote.
+
+Dr. Anita Verma’s session explained how LLMs improve code generation.
+
+Got insights into PWA enhancements using Next.js & WebAssembly.
+
+Firebase talk helped me understand real-time Firestore sync and auth.
+
+Tried TensorFlow 3.0 in the hands-on workshop — very intuitive.
+
+Explored building scalable apps with Firebase + Flutter.
