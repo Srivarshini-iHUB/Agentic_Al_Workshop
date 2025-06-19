@@ -1,0 +1,12 @@
+Title: AI Agents in Healthcare
+
+Description:
+This session explored how AI agents are being deployed in the healthcare industry. Topics included LLM-based diagnostic assistants, intelligent chatbots for patients, and case studies on AI in radiology and pathology.
+
+Speaker: Dr. Priya Sharma, Chief AI Officer at MediTech
+
+Key Points:
+- Use of LangChain for building intelligent agents
+- Case study: Radiology diagnosis using Gemini Pro
+- Ethical considerations in autonomous decision-making
+- RAG-based retrieval for medical record analysis

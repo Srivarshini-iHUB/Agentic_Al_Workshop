@@ -1,0 +1,7 @@
+langchain
+google-generativeai
+python-dotenv
+PyMuPDF
+pytesseract
+Pillow
+unstructured

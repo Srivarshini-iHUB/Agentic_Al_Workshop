@@ -1,0 +1,3 @@
+Attended an insightful session on AI agents in healthcare! Learned how LangChain can help create diagnostic assistants and about Gemini Pro being used in radiology. The speaker also mentioned ethical issues in AI for medical decision-making.
+
+Loved the demo on RAG-based document retrieval using patient records.

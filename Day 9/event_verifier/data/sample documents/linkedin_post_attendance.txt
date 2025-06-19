@@ -1,0 +1,12 @@
+
+Just attended an amazing session on "The Future of AI Agents" at #GoogleDevFest 2025! 🤖✨
+
+Key takeaways:
+✅ Multi-agent collaboration is transforming productivity
+✅ Google's Gemini API opens new doors for Agentic AI
+✅ Loved the demo on session alignment and RAG-based learning validation!
+
+Big thanks to the speakers and organizers. Looking forward to implementing these insights in my student projects! #AI #LangChain #Gemini #DevFest
+
+📍 Location: Chennai Trade Centre
+🕒 Date: July 22, 2025
