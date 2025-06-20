@@ -15,19 +15,19 @@ async def aggregate_logs(request: Request):
 @router.post("/infer-intent")
 async def infer_intent(request: Request):
     data = await request.json()
-    return run_intent_agent(data.get("activities", []))
+    return run_intent_agent(data.get("input", []))
 
 @router.post("/map-graph")
 async def map_graph(request: Request):
     data = await request.json()
-    return run_kg_agent(data.get("themes", []))
+    return run_kg_agent(data.get("input", []))
 
 @router.post("/generate-outcomes")
 async def generate_outcomes(request: Request):
     data = await request.json()
-    return run_outcome_agent(data.get("knowledge_graph", []))
+    return run_outcome_agent(data.get("input", []))
 
 @router.post("/generate-okr")
 async def generate_okr(request: Request):
     data = await request.json()
-    return run_okr_agent(data.get("outcomes", []))
+    return run_okr_agent(data.get("input", []))

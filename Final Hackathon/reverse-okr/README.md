@@ -6,7 +6,6 @@ This project implements a Reverse OKR (Objectives and Key Results) system using 
 The project consists of a backend API built with FastAPI and a frontend React application built with React + Vite.
 
 
-
 ## workflow
 
                     [ User Input: Exploration Logs ]
@@ -147,3 +146,8 @@ Ensure the backend server is running before executing the script.
 For questions or contributions, please contact the project team.
 
 ---
+
+
+video link: https://drive.google.com/file/d/1WI0P_bLGjypxoIi4yJ2qIh57iDpXETvv/view
+
+

@@ -2,7 +2,7 @@ from langchain.agents import Tool, initialize_agent, AgentType
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.core.config import GOOGLE_API_KEY
 
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=GOOGLE_API_KEY)
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=GOOGLE_API_KEY)
 
 def kg_tool_fn(themes):
     if not themes or not isinstance(themes, (list, dict)):
