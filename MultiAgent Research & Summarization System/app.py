@@ -14,13 +14,14 @@ from langchain_core.runnables import RunnableLambda
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.tools import DuckDuckGoSearchRun
 from dotenv import load_dotenv
-load_dotenv()
-# ---------------------- CONFIGURATION ----------------------
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+# ---------------------- LOAD ENV ----------------------
+load_dotenv()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY not found in environment variables")
 
+# ---------------------- MODELS & TOOLS ----------------------
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
 embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
@@ -79,7 +80,7 @@ def summarizer_agent(state):
     summary = (prompt | llm).invoke({"content": content}).content
     return {**state, "final": summary}
 
-# ---------------------- LANGGRAPH ----------------------
+# ---------------------- LANGGRAPH WORKFLOW ----------------------
 def run_langgraph(user_query, retriever):
     workflow = StateGraph(dict)
     workflow.set_entry_point("router")
@@ -105,15 +106,46 @@ def run_langgraph(user_query, retriever):
     return app.invoke({"query": user_query, "retriever": retriever})["final"]
 
 # ---------------------- STREAMLIT APP ----------------------
-st.set_page_config(page_title="🔍 Fully Agentic Research Assistant", layout="centered")
-st.title("🧠 Multi-Agent RAG System (LangGraph + Web + RAG + LLM)")
+st.set_page_config(page_title="🔍 Agentic Research Assistant", layout="centered")
 
+# Custom Style
+st.markdown("""
+    <style>
+    .main-title {
+        text-align: center;
+        font-size: 36px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        color: #3b82f6;
+    }
+    .subtitle {
+        text-align: center;
+        font-size: 18px;
+        color: #6b7280;
+    }
+    .status-badge {
+        display: inline-block;
+        background-color: #e0f2fe;
+        color: #0284c7;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 14px;
+        margin-left: 10px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="main-title">🧠 Multi-Agent Research Assistant</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">LangGraph + Gemini + FAISS + Web Search + RAG</div>', unsafe_allow_html=True)
+st.markdown("---")
+
+# Document loading
 retriever = None
 documents_loaded = False
+loaded_files = []
 
-# Load local documents
-if os.path.exists("data"):
-    with st.spinner("📂 Loading documents from 'data' folder..."):
+with st.spinner("📂 Scanning 'data' folder for documents..."):
+    if os.path.exists("data"):
         all_content = []
         for filename in os.listdir("data"):
             filepath = os.path.join("data", filename)
@@ -121,18 +153,25 @@ if os.path.exists("data"):
                 content = extract_text_from_local_path(filepath)
                 if content:
                     all_content.append(content)
+                    loaded_files.append(filename)
 
         if all_content:
             chunks = text_splitter.create_documents(all_content)
             vectorstore = FAISS.from_documents(chunks, embeddings)
             retriever = vectorstore.as_retriever()
             documents_loaded = True
-            st.success(f"✅ Loaded {len(all_content)} documents.")
+            st.success(f"✅ Loaded {len(loaded_files)} documents.")
+            with st.expander("📄 View loaded files"):
+                for f in loaded_files:
+                    st.markdown(f"- {f}")
         else:
-            st.warning("⚠️ No readable files found.")
+            st.warning("⚠️ No valid files found in 'data' folder.")
+    else:
+        st.info("📁 'data' folder does not exist.")
 
 if not documents_loaded:
     st.info("📄 Using fallback knowledge base.")
+    st.markdown('<div class="status-badge">Fallback KB Active</div>', unsafe_allow_html=True)
     docs = [
         Document(page_content="LangGraph is a Python framework for agent workflows."),
         Document(page_content="Gemini 1.5 Flash is fast and great for summarization."),
@@ -140,9 +179,15 @@ if not documents_loaded:
     vectorstore = FAISS.from_documents(docs, embeddings)
     retriever = vectorstore.as_retriever()
 
-# User Input
-query = st.text_input("💬 Ask your question", placeholder="e.g. What is LangGraph?")
-submit = st.button("Submit")
+st.markdown("---")
+
+# User Query Input
+with st.form(key="query_form"):
+    st.markdown("### 💬 Ask a question:")
+    query = st.text_input("", placeholder="e.g. What is LangGraph?", label_visibility="collapsed")
+    col1, col2 = st.columns([0.7, 0.3])
+    with col2:
+        submit = st.form_submit_button("🚀 Submit")
 
 if submit:
     if not query.strip():
@@ -151,8 +196,8 @@ if submit:
         with st.spinner("🤖 Thinking..."):
             try:
                 answer = run_langgraph(query, retriever)
-                st.success("✅ Done!")
-                st.subheader("📘 Answer:")
+                st.success("✅ Answer generated successfully!")
+                st.markdown("### 📘 Answer:")
                 st.write(answer)
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
