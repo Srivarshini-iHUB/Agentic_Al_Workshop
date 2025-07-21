@@ -1,9 +1,6 @@
-Here's your **updated full `README.md`** including the new `LangGraph` structure visualization using `st.expander()` and `st.graphviz_chart()`.
-
----
-
-````markdown
 # 🧠 Multi-Agent RAG System (LangGraph + Web + RAG + LLM)
+
+An intelligent multi-agent research and summarization system designed to provide concise, accurate, and context-aware answers by orchestrating multiple specialized agents.
 
 This project implements an intelligent multi-agent research assistant using:
 
@@ -29,13 +26,16 @@ with st.expander("🧩 LangGraph Structure"):
         LLM -> Summarizer;
     }
     """)
-````
+```
 
 This illustrates the flow:
 
-* Query goes through `Router`
-* Based on classification, it’s sent to `Web`, `RAG`, or `LLM`
-* All paths end at the `Summarizer` node which produces the final output
+* Query goes through the `Router` agent, which classifies the query type.
+* Based on classification, the query is routed to one of three agents:
+  - `Web` agent for live web search
+  - `RAG` agent for retrieval-augmented generation from local documents
+  - `LLM` agent for direct language model generation
+* All paths converge at the `Summarizer` agent, which produces the final concise output.
 
 ---
 
@@ -98,12 +98,12 @@ streamlit run app.py
 
 ## 💡 Features
 
-* 🔍 **Ask Anything**: Input a query, get routed to Web, RAG, or LLM
+* 🔍 **Ask Anything**: Input a query, get routed to Web, RAG, or LLM agents
 * 🧠 **Automatic Routing**: Classifies queries for best agent path
-* 📄 **Document Ingestion**: Reads from local `my_docs/` folder
-* 🔎 **Semantic Retrieval**: Uses FAISS + Gemini embeddings
+* 📄 **Document Ingestion**: Reads from local `my_docs/` folder supporting PDF, DOCX, and TXT
+* 🔎 **Semantic Retrieval**: Uses FAISS with Gemini embeddings for vector search
 * ✨ **Concise Summarization**: Generates final answers with Gemini LLM
-* 🌐 **Live Web Search**: If query needs real-time info
+* 🌐 **Live Web Search**: Provides real-time information when needed
 
 ---
 
@@ -121,7 +121,7 @@ streamlit run app.py
 1. **File Loader**
 
    * Supports `.pdf`, `.docx`, and `.txt` formats
-   * Loads and splits into chunks using LangChain's `RecursiveCharacterTextSplitter`
+   * Loads and splits documents into chunks using LangChain's `RecursiveCharacterTextSplitter`
 
 2. **Vector Store (FAISS)**
 
@@ -130,14 +130,17 @@ streamlit run app.py
 
 3. **LangGraph Workflow**
 
-   * Router determines query type
-   * Three agents: `web_agent`, `rag_agent`, `llm_agent`
-   * Summary produced by `summarizer_agent`
+   * `Router` agent determines query type
+   * Three specialized agents handle queries:
+     - `web_agent`: performs live web search
+     - `rag_agent`: retrieves from local documents
+     - `llm_agent`: generates answers directly from LLM
+   * `summarizer_agent` consolidates and summarizes results
 
 4. **Streamlit Interface**
 
-   * User types a query
-   * Results are displayed interactively with visual workflow structure
+   * User inputs query via UI
+   * Results and LangGraph workflow visualization displayed interactively
 
 ---
 
@@ -145,7 +148,7 @@ streamlit run app.py
 
 * **API Key Not Found**: Ensure `.env` exists and key is valid.
 * **No Documents Loaded**: Make sure `my_docs/` contains valid PDF, DOCX, or TXT files.
-* **Web Search Errors**: Check internet and `duckduckgo-search` installation.
+* **Web Search Errors**: Check internet connection and `duckduckgo-search` installation.
 
 ---
 
@@ -156,4 +159,16 @@ streamlit run app.py
 * PDF OCR (scanned documents)
 * Chat-style interface
 
+---
 
+## 🛠️ Usage Tips
+
+* Place your documents in the `my_docs/` folder before running the app.
+* Use clear and specific queries for best results.
+* Monitor console logs for debugging information.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License.
