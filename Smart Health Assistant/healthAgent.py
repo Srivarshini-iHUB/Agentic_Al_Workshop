@@ -1,11 +1,9 @@
-
 import streamlit as st
 from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
 import google.generativeai as genai
 
-# === Streamlit UI ===
 st.set_page_config(page_title="Smart Health Assistant", layout="wide")
-st.title("🤖 Smart Health Assistant")
+st.title("Smart Health Assistant")
 
 with st.sidebar:
     st.header("Configuration")
@@ -14,7 +12,7 @@ with st.sidebar:
     st.divider()
     st.caption("This assistant calculates BMI, provides health recommendations, creates meal plans, and generates workout schedules based on your inputs.")
 
-# === Session State ===
+
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 if "final_plan" not in st.session_state:
@@ -22,7 +20,6 @@ if "final_plan" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# === Utility: Gemini Config Wrapper ===
 def get_gemini_config(api_key: str, model: str = "gemini-1.5-flash"):
     return [{
         "model": model,
@@ -31,12 +28,12 @@ def get_gemini_config(api_key: str, model: str = "gemini-1.5-flash"):
         "base_url": "https://generativelanguage.googleapis.com/v1beta"
     }]
 
-# === BMI Tool ===
+
 def calculate_bmi(weight_kg: float, height_cm: float) -> float:
     height_m = height_cm / 100
     return round(weight_kg / (height_m ** 2), 1)
 
-# === Health Form ===
+
 with st.form("health_form"):
     col1, col2 = st.columns(2)
     with col1:
@@ -49,38 +46,42 @@ with st.form("health_form"):
         st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
         submit_btn = st.form_submit_button("Generate Health Plan")
 
-# === Agent Initialization ===
-def init_agents(api_key):
+def init_agents(api_key, dietary_pref, age, gender):
     genai.configure(api_key=api_key)
     config_list = get_gemini_config(api_key)
 
     bmi_agent = AssistantAgent(
         name="BMI_Agent",
         llm_config={"config_list": config_list, "cache_seed": None},
-        system_message="""You are a BMI specialist. Analyze BMI results and:
-        1. Calculate BMI from weight (kg) and height (cm)
-        2. Categorize (underweight, normal, overweight, obese)
-        3. Provide health recommendations
-        Always include the exact BMI value in your response."""
+        system_message="""You are a BMI specialist. Your job:
+        1. Use the function 'calculate_bmi' with given weight (kg) and height (cm)
+        2. Categorize BMI: underweight, normal, overweight, obese
+        3. Give recommendations based on BMI category
+        Always return the exact BMI value."""
     )
 
     diet_agent = AssistantAgent(
         name="Diet_Planner",
         llm_config={"config_list": config_list, "cache_seed": None},
-        system_message=f"""You are a nutritionist. Create meal plans based on:
-        1. BMI analysis from BMI_Agent
-        2. Dietary preference ({dietary_preference})
-        Include breakfast, lunch, dinner, and snacks with portions."""
+        system_message=f"""You are a nutrition expert. Based on:
+        - BMI agent feedback
+        - Dietary preference: {dietary_pref}
+        Create a daily meal plan:
+        - Include breakfast, lunch, dinner, snacks
+        - Specify portions and nutrition focus"""
     )
 
     workout_agent = AssistantAgent(
         name="Workout_Scheduler",
         llm_config={"config_list": config_list, "cache_seed": None},
-        system_message=f"""You are a fitness trainer. Create weekly workout plans based on:
-        1. Age ({age}) and gender ({gender})
-        2. BMI recommendations
-        3. Meal plan from Diet_Planner
-        Include cardio, strength training with duration and intensity."""
+        system_message=f"""You are a certified fitness coach. Based on:
+        - Age: {age}
+        - Gender: {gender}
+        - BMI recommendations
+        - Diet plan
+        Create a 7-day workout plan with:
+        - Cardio, strength, flexibility
+        - Duration, frequency, and intensity"""
     )
 
     user_proxy = UserProxyAgent(
@@ -88,17 +89,18 @@ def init_agents(api_key):
         human_input_mode="NEVER",
         code_execution_config=False,
         llm_config={"config_list": config_list, "cache_seed": None},
-        system_message="Collects and shares user data with other agents."
+        system_message="You are the user proxy sharing inputs with expert agents."
     )
 
     user_proxy.register_function(function_map={"calculate_bmi": calculate_bmi})
 
     return user_proxy, bmi_agent, diet_agent, workout_agent, config_list
 
-# === Submit Handler ===
 if submit_btn and gemini_api_key:
     try:
-        user_proxy, bmi_agent, diet_agent, workout_agent, config_list = init_agents(gemini_api_key)
+        user_proxy, bmi_agent, diet_agent, workout_agent, config_list = init_agents(
+            gemini_api_key, dietary_preference, age, gender
+        )
 
         groupchat = GroupChat(
             agents=[user_proxy, bmi_agent, diet_agent, workout_agent],
@@ -114,19 +116,17 @@ if submit_btn and gemini_api_key:
 
         initial_message = f"""
         User Health Profile:
-        - Basic Information:
-          • Weight: {weight} kg
-          • Height: {height} cm
-          • Age: {age}
-          • Gender: {gender}
-        - Preferences:
-          • Dietary Preference: {dietary_preference}
+        - Weight: {weight} kg
+        - Height: {height} cm
+        - Age: {age}
+        - Gender: {gender}
+        - Dietary Preference: {dietary_preference}
 
-        Please proceed with the health assessment in this sequence:
-        1. Calculate BMI using the 'calculate_bmi' function with weight={weight} and height={height}
-        2. Analyze BMI and provide recommendations
-        3. Create a meal plan based on BMI analysis and dietary preference
-        4. Develop a workout schedule based on age, gender, and meal plan
+        Proceed as follows:
+        1. BMI Agent: Use 'calculate_bmi' function
+        2. Analyze and categorize BMI
+        3. Diet Planner: Build plan from BMI and dietary preference
+        4. Workout Scheduler: Generate weekly plan based on all above
         """
 
         with st.spinner("Generating your personalized health plan..."):
@@ -146,10 +146,9 @@ if submit_btn and gemini_api_key:
         st.success("Health plan generated successfully!")
 
     except Exception as e:
-        st.error(f"Error occurred: {str(e)}")
-        st.info("Please ensure: 1) Valid API key 2) Stable internet connection 3) Correct input values")
+        st.error(f"Error: {str(e)}")
+        st.info("Make sure your Gemini API key is correct and you're connected to the internet.")
 
-# === Results Display ===
 if st.session_state.conversation:
     st.divider()
     st.subheader("Health Plan Generation Process")
@@ -159,7 +158,7 @@ if st.session_state.conversation:
             st.markdown(message)
 
     st.divider()
-    st.subheader("🌟 Your Complete Health Plan")
+    st.subheader(" Your Complete Health Plan")
 
     if st.session_state.final_plan:
         st.markdown(st.session_state.final_plan)
@@ -170,7 +169,7 @@ if st.session_state.conversation:
             mime="text/plain"
         )
     else:
-        st.warning("Workout schedule not generated. Please try again.")
+        st.warning("Workout plan was not generated. Please try again.")
 
 elif not submit_btn:
     st.divider()
