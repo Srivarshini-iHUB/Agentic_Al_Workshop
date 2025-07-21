@@ -6,21 +6,16 @@ import tempfile
 import json
 import google.generativeai as genai
 from autogen.agentchat import UserProxyAgent, AssistantAgent, GroupChat, GroupChatManager
-
-# Load API Key
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("models/gemini-1.5-flash")
-
-# --- UI CONFIG ---
 st.set_page_config(
     page_title="🧾 AI Bill Management Agent", 
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Enhanced CSS styling
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -225,7 +220,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Header Section
 st.markdown("""
     <div class="main-header">
         <h1>💼 AI Bill Management Agent</h1>
@@ -233,7 +227,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Create columns for better layout
 col1, col2, col3 = st.columns([1, 2, 1])
 
 with col2:
@@ -249,11 +242,9 @@ with col2:
         help="Supported formats: JPG, JPEG, PNG"
     )
 
-# Initialize chat log
 if 'chat_log' not in st.session_state:
     st.session_state.chat_log = []
 
-# Category icons mapping
 CATEGORY_ICONS = {
     "Groceries": "🛒",
     "Dining": "🍽️", 
@@ -265,8 +256,6 @@ CATEGORY_ICONS = {
     "Healthcare": "🏥",
     "Education": "📚"
 }
-
-# --- Helper Functions (same logic, better structure) ---
 def process_bill_with_gemini(image_file):
     """Extract expenses from bill image using Gemini Vision"""
     try:
@@ -298,7 +287,7 @@ def process_bill_with_gemini(image_file):
         st.error(f"Error processing bill: {str(e)}")
         return None, str(e)
     finally:
-        # Clean up temp file
+      
         if 'tmp_path' in locals():
             os.unlink(tmp_path)
 
@@ -349,8 +338,6 @@ def calculate_expense_stats(categorized_data):
         'item_count': item_count,
         'category_count': len([c for c in category_totals if category_totals[c] > 0])
     }
-
-# --- AutoGen Agents Setup (same logic) ---
 user_proxy = UserProxyAgent(
     name="UserProxy",
     human_input_mode="NEVER",
@@ -373,56 +360,44 @@ summary_agent = AssistantAgent(
 group_chat = GroupChat(agents=[user_proxy, bill_processing_agent, summary_agent])
 manager = GroupChatManager(groupchat=group_chat)
 
-# --- Main Processing Logic ---
 if uploaded_file:
-    # Success message
-    st.markdown('<div class="success-message">✅ File uploaded successfully! Processing your bill...</div>', 
+    st.markdown('<div class="success-message">File uploaded successfully! Processing your bill...</div>', 
                 unsafe_allow_html=True)
     
-    # Display uploaded image
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.image(uploaded_file, caption="Uploaded Bill", use_column_width=True)
-    
-    # Processing with spinner
+ 
     with st.spinner("🔍 Extracting and categorizing expenses..."):
         categorized_data, raw_response = process_bill_with_gemini(uploaded_file)
 
     if not categorized_data:
-        st.markdown('<div class="error-message">❌ Failed to extract expenses from the bill.</div>', 
+        st.markdown('<div class="error-message"> Failed to extract expenses from the bill.</div>', 
                    unsafe_allow_html=True)
         with st.expander("View Raw Response"):
             st.text(raw_response)
     else:
-        # Calculate statistics
         stats = calculate_expense_stats(categorized_data)
-        
-        # Agent communication (same logic)
+       
         st.session_state.chat_log = []
         
-        # 1. User → Group Manager
         user_proxy.send("Bill uploaded and processed", manager)
         st.session_state.chat_log.append(("UserProxy → GroupManager", "Bill uploaded and processed"))
 
-        # 2. User → BillProcessingAgent  
         user_proxy.send(f"Categorized expenses: {categorized_data}", bill_processing_agent)
         st.session_state.chat_log.append(("UserProxy → BillProcessingAgent", json.dumps(categorized_data, indent=2)))
 
-        # 3. Simulate BillProcessingAgent response
-        bp_response = f"✅ Categorization complete! Successfully processed {stats['item_count']} items across {stats['category_count']} categories."
+        bp_response = f" Categorization complete! Successfully processed {stats['item_count']} items across {stats['category_count']} categories."
         st.session_state.chat_log.append(("BillProcessingAgent", bp_response))
 
-        # 4. User → ExpenseSummarizationAgent
         user_proxy.send("Generate comprehensive expense analysis", summary_agent)
         st.session_state.chat_log.append(("UserProxy → ExpenseSummarizationAgent", "Generate comprehensive expense analysis"))
 
-        # 5. Generate summary
-        with st.spinner("📊 Generating intelligent spending analysis..."):
+        with st.spinner(" Generating intelligent spending analysis..."):
             summary = summarize_expenses_with_gemini(categorized_data)
 
         st.session_state.chat_log.append(("ExpenseSummarizationAgent", summary))
 
-        # --- Display Statistics ---
         st.markdown(f"""
             <div class="stats-container">
                 <div class="stat-card">
@@ -444,10 +419,8 @@ if uploaded_file:
             </div>
         """, unsafe_allow_html=True)
 
-        # --- Display Categorized Expenses ---
         st.markdown("## 📂 Categorized Expenses")
         
-        # Filter out empty categories
         non_empty_categories = {k: v for k, v in categorized_data.items() if v}
         
         for category, items in non_empty_categories.items():
@@ -475,7 +448,6 @@ if uploaded_file:
             
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # --- Display Summary ---
         st.markdown(f"""
             <div class="summary-section">
                 <h2>📋 AI Spending Analysis</h2>
@@ -485,7 +457,6 @@ if uploaded_file:
             </div>
         """, unsafe_allow_html=True)
 
-        # --- Display Agent Chat Logs ---
         st.markdown("""
             <div class="chat-section">
                 <h2>💬 Agent Communication Logs</h2>
@@ -505,7 +476,6 @@ if uploaded_file:
         st.markdown("</div>", unsafe_allow_html=True)
 
 else:
-    # Welcome message when no file is uploaded
     st.markdown("""
         <div style="text-align: center; padding: 3rem; color: #718096;">
             <h3>👆 Upload a bill image to get started</h3>

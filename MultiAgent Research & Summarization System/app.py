@@ -15,19 +15,15 @@ from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmb
 from langchain_community.tools import DuckDuckGoSearchRun
 from dotenv import load_dotenv
 
-# ---------------------- LOAD ENV ----------------------
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY not found in environment variables")
-
-# ---------------------- MODELS & TOOLS ----------------------
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
 embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 search = DuckDuckGoSearchRun()
 
-# ---------------------- FILE PARSER ----------------------
 def extract_text_from_local_path(path):
     if path.endswith(".pdf"):
         with pdfplumber.open(path) as pdf:
@@ -40,7 +36,6 @@ def extract_text_from_local_path(path):
         return "\n".join([p.text for p in doc.paragraphs])
     return ""
 
-# ---------------------- AGENTS ----------------------
 def router_agent(state):
     query = state.get("query", "")
     route_prompt = PromptTemplate.from_template(
@@ -80,7 +75,6 @@ def summarizer_agent(state):
     summary = (prompt | llm).invoke({"content": content}).content
     return {**state, "final": summary}
 
-# ---------------------- LANGGRAPH WORKFLOW ----------------------
 def run_langgraph(user_query, retriever):
     workflow = StateGraph(dict)
     workflow.set_entry_point("router")
@@ -105,10 +99,7 @@ def run_langgraph(user_query, retriever):
     app = workflow.compile()
     return app.invoke({"query": user_query, "retriever": retriever})["final"]
 
-# ---------------------- STREAMLIT APP ----------------------
 st.set_page_config(page_title="🔍 Agentic Research Assistant", layout="centered")
-
-# Custom Style
 st.markdown("""
     <style>
     .main-title {
@@ -135,16 +126,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">🧠 Multi-Agent Research Assistant</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">Multi-Agent Research Assistant</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">LangGraph + Gemini + FAISS + Web Search + RAG</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# Document loading
 retriever = None
 documents_loaded = False
 loaded_files = []
 
-with st.spinner("📂 Scanning 'data' folder for documents..."):
+with st.spinner("Scanning 'data' folder for documents..."):
     if os.path.exists("data"):
         all_content = []
         for filename in os.listdir("data"):
@@ -160,17 +150,17 @@ with st.spinner("📂 Scanning 'data' folder for documents..."):
             vectorstore = FAISS.from_documents(chunks, embeddings)
             retriever = vectorstore.as_retriever()
             documents_loaded = True
-            st.success(f"✅ Loaded {len(loaded_files)} documents.")
-            with st.expander("📄 View loaded files"):
+            st.success(f"Loaded {len(loaded_files)} documents.")
+            with st.expander("View loaded files"):
                 for f in loaded_files:
                     st.markdown(f"- {f}")
         else:
-            st.warning("⚠️ No valid files found in 'data' folder.")
+            st.warning("No valid files found in 'data' folder.")
     else:
-        st.info("📁 'data' folder does not exist.")
+        st.info(" 'data' folder does not exist.")
 
 if not documents_loaded:
-    st.info("📄 Using fallback knowledge base.")
+    st.info("Using fallback knowledge base.")
     st.markdown('<div class="status-badge">Fallback KB Active</div>', unsafe_allow_html=True)
     docs = [
         Document(page_content="LangGraph is a Python framework for agent workflows."),
@@ -183,21 +173,21 @@ st.markdown("---")
 
 # User Query Input
 with st.form(key="query_form"):
-    st.markdown("### 💬 Ask a question:")
+    st.markdown("### Ask a question:")
     query = st.text_input("", placeholder="e.g. What is LangGraph?", label_visibility="collapsed")
     col1, col2 = st.columns([0.7, 0.3])
     with col2:
-        submit = st.form_submit_button("🚀 Submit")
+        submit = st.form_submit_button("Submit")
 
 if submit:
     if not query.strip():
-        st.warning("⚠️ Please enter a question.")
+        st.warning("Please enter a question.")
     else:
-        with st.spinner("🤖 Thinking..."):
+        with st.spinner("analysing..."):
             try:
                 answer = run_langgraph(query, retriever)
-                st.success("✅ Answer generated successfully!")
-                st.markdown("### 📘 Answer:")
+                st.success("Answer generated successfully!")
+                st.markdown("### Answer:")
                 st.write(answer)
             except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
+                st.error(f"Error: {str(e)}")

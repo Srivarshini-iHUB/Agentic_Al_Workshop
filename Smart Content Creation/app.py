@@ -6,7 +6,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 import copy
 import os
 
-# -------------------- CONFIGURATION --------------------
 api_key = "AIzaSyDG-0xIaprzdT70VTf-LnMt62_s-F8SJqA"
 genai.configure(api_key=api_key)
 
@@ -26,7 +25,6 @@ You are a Content Critic Agent evaluating Generative AI content. Your role is to
 4. Maintain professional, objective tone
 """
 
-# -------------------- AGENT WRAPPER --------------------
 class GeminiAgent:
     def __init__(self, model, system_message):
         self.model = model
@@ -56,7 +54,6 @@ critic_model = GeminiAgent(
     system_message=CRITIC_SYSTEM_MESSAGE
 )
 
-# -------------------- STREAMLIT UI --------------------
 st.set_page_config(page_title="🤖 Agentic Content Refinement", layout="wide")
 
 st.markdown("""
@@ -87,13 +84,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">🤖 Agentic AI Content Refinement</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title"> Agentic AI Content Refinement</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Simulated Collaboration Between Creator & Critic Agents</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-topic = st.text_input("🎯 Discussion Topic", "Agentic AI")
-turns = st.slider("🔁 Conversation Turns", 3, 5, 3)
-generate_btn = st.button("🚀 Start Simulation")
+topic = st.text_input(" Discussion Topic", "Agentic AI")
+turns = st.slider(" Conversation Turns", 3, 5, 3)
+generate_btn = st.button(" Start Simulation")
 
 if generate_btn:
     creator = AssistantAgent(
@@ -142,27 +139,24 @@ if generate_btn:
     critic_feedback = ""
 
     for turn in range(1, turns + 1):
-        with st.status(f"💬 Turn {turn} in progress...", expanded=False):
-            # Creator Turn
+        with st.status(f" Turn {turn} in progress...", expanded=False):
             if turn % 2 == 1:
-                st.markdown(f'<div class="turn-title">✍️ Turn {turn}: Content Creator</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="turn-title"> Turn {turn}: Content Creator</div>', unsafe_allow_html=True)
                 if turn == 1:
                     prompt = f"Draft comprehensive content about **{topic}** in markdown format covering:\n- Key concepts\n- Technical foundations\n- Real-world applications\n- Future implications"
                 else:
                     prompt = f"Revise this content based on the critic's feedback:\n\n{critic_feedback}\n\nCurrent content:\n{creator_output}\n\nProvide improved markdown content:"
 
-                st.markdown("**📝 Prompt:**")
+                st.markdown("** Prompt:**")
                 st.code(prompt, language="markdown")
 
                 creator_output = creator_model.generate(prompt)
 
-                st.markdown("**🧠 Generated Content:**")
+                st.markdown("** Generated Content:**")
                 st.markdown(creator_output, unsafe_allow_html=True)
                 conversation_history.append(("Creator", creator_output))
-
-            # Critic Turn
             else:
-                st.markdown(f'<div class="turn-title">🧐 Turn {turn}: Content Critic</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="turn-title">Turn {turn}: Content Critic</div>', unsafe_allow_html=True)
                 prompt = f"""Evaluate this content based on:\n
 1. Technical accuracy\n
 2. Clarity of explanations\n
@@ -170,27 +164,24 @@ if generate_btn:
 4. Suggestions for improvement\n
 \nContent:\n{creator_output}"""
 
-                st.markdown("**📋 Prompt:**")
+                st.markdown("** Prompt:**")
                 st.code(prompt, language="markdown")
 
                 critic_feedback = critic_model.generate(prompt)
 
-                st.markdown("**📣 Feedback:**")
+                st.markdown("**Feedback:**")
                 st.markdown(critic_feedback, unsafe_allow_html=True)
                 conversation_history.append(("Critic", critic_feedback))
 
             time.sleep(1)
-
-    # Final Output
     st.markdown("---")
-    st.markdown("## ✅ Final Creator Output")
+    st.markdown("##  Final Creator Output")
     st.markdown('<div class="final-section">', unsafe_allow_html=True)
     st.markdown(creator_output, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Full Trace
     st.markdown("---")
-    st.markdown("## 🗂️ Full Conversation History")
+    st.markdown("##  Full Conversation History")
     for i, (role, content) in enumerate(conversation_history, 1):
         with st.expander(f"{role} - Turn {i}"):
             st.markdown(content, unsafe_allow_html=True)

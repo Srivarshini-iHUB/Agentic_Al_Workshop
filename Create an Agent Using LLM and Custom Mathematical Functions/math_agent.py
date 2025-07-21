@@ -12,10 +12,7 @@ import streamlit as st
 import time
 from datetime import datetime
 
-# Load environment variables
 load_dotenv()
-
-# Initialize Gemini LLM
 try:
     llm = ChatGoogleGenerativeAI(
         model="gemini-1.5-flash", 
@@ -25,14 +22,12 @@ try:
 except Exception as e:
     st.error(f"Failed to initialize LLM: {str(e)}")
 
-# --- UI Configuration ---
 st.set_page_config(
-    page_title="🧮 AI Math & Q&A Assistant",
+    page_title="AI Math & Q&A Assistant",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Enhanced CSS Styling
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
@@ -317,22 +312,19 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Header
+
 st.markdown("""
     <div class="main-header">
-        <h1>🧮 AI Math & Q&A Assistant</h1>
+        <h1> AI Math & Q&A Assistant</h1>
         <p>Powered by LangGraph & Gemini - Ask questions or solve math problems!</p>
     </div>
 """, unsafe_allow_html=True)
 
-# Define the State (same logic)
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], operator.add]
     user_input: str
     agent_outcome: Optional[Union[BaseMessage, List[tuple]]]
     intermediate_steps: List
-
-# Define enhanced math tools with better descriptions
 @tool
 def plus(a: float, b: float) -> float:
     """Add two numbers together. Use for addition problems and sum calculations."""
@@ -355,10 +347,8 @@ def divide(a: float, b: float) -> float:
         return "Error: Cannot divide by zero"
     return a / b
 
-# List of all available tools
 tools = [plus, sub, mul, divide]
 
-# Enhanced system prompt
 system_prompt = """You are an intelligent assistant that excels at:
 - Answering general knowledge questions with accurate, detailed responses
 - Performing mathematical calculations using specialized tools
@@ -370,8 +360,6 @@ For general questions, provide comprehensive and helpful responses.
 Always be friendly, professional, and clear in your communication.
 
 When using math tools, explain your process and show the calculation steps."""
-
-# Create the agent with tools (same logic)
 agent = create_tool_calling_agent(
     llm=llm,
     tools=tools,
@@ -382,27 +370,21 @@ agent = create_tool_calling_agent(
         MessagesPlaceholder("agent_scratchpad"),
     ]),
 )
-
-# Create agent executor
 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-
-# Initialize session state
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 if 'message_count' not in st.session_state:
     st.session_state.message_count = 0
 if 'tool_usage' not in st.session_state:
     st.session_state.tool_usage = {'plus': 0, 'sub': 0, 'mul': 0, 'divide': 0}
-
-# Sidebar with enhanced information
 with st.sidebar:
     st.markdown("## 🔧 Available Tools")
     
     tool_descriptions = {
-        'plus': ('➕ Addition', 'Adds two numbers together'),
-        'sub': ('➖ Subtraction', 'Subtracts second number from first'),
-        'mul': ('✖️ Multiplication', 'Multiplies two numbers'),
-        'divide': ('➗ Division', 'Divides first number by second')
+        'plus': (' Addition', 'Adds two numbers together'),
+        'sub': (' Subtraction', 'Subtracts second number from first'),
+        'mul': (' Multiplication', 'Multiplies two numbers'),
+        'divide': ('Division', 'Divides first number by second')
     }
     
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
@@ -414,46 +396,43 @@ with st.sidebar:
             </div>
         """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Statistics section
-    st.markdown("## 📊 Session Stats")
+
+    st.markdown("## Session Stats")
     st.markdown(f"""
         <div class="stats-section">
             <div class="stat-item">
-                <span>💬 Messages:</span>
+                <span> Messages:</span>
                 <span>{st.session_state.message_count}</span>
             </div>
             <div class="stat-item">
-                <span>🧮 Tool Uses:</span>
+                <span>Tool Uses:</span>
                 <span>{sum(st.session_state.tool_usage.values())}</span>
             </div>
             <div class="stat-item">
-                <span>➕ Additions:</span>
+                <span> Additions:</span>
                 <span>{st.session_state.tool_usage['plus']}</span>
             </div>
             <div class="stat-item">
-                <span>➖ Subtractions:</span>
+                <span> Subtractions:</span>
                 <span>{st.session_state.tool_usage['sub']}</span>
             </div>
             <div class="stat-item">
-                <span>✖️ Multiplications:</span>
+                <span> Multiplications:</span>
                 <span>{st.session_state.tool_usage['mul']}</span>
             </div>
             <div class="stat-item">
-                <span>➗ Divisions:</span>
+                <span> Divisions:</span>
                 <span>{st.session_state.tool_usage['divide']}</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
-    
-    # Clear chat button
+
     if st.button("🗑️ Clear Chat", key="clear_chat"):
         st.session_state.chat_history = []
         st.session_state.message_count = 0
         st.session_state.tool_usage = {'plus': 0, 'sub': 0, 'mul': 0, 'divide': 0}
         st.rerun()
 
-# Define nodes for the graph (same logic)
 def agent_node(state: AgentState):
     """Process user input through the agent"""
     try:
@@ -461,8 +440,7 @@ def agent_node(state: AgentState):
             "input": state["user_input"],
             "chat_history": state["messages"]
         })
-        
-        # Track tool usage (enhanced)
+   
         if "intermediate_steps" in result:
             for step in result.get("intermediate_steps", []):
                 if len(step) >= 1 and hasattr(step[0], 'tool'):
@@ -481,13 +459,10 @@ def agent_node(state: AgentState):
             "agent_outcome": error_msg
         }
 
-# Define the graph workflow (same logic)
 workflow = StateGraph(AgentState)
 workflow.add_node("agent", agent_node)
 workflow.set_entry_point("agent")
 workflow.add_edge("agent", END)
-
-# Compile the graph
 app = workflow.compile()
 
 def run_agent(query: str, chat_history: List[BaseMessage] = []) -> str:
@@ -508,19 +483,18 @@ def detect_tool_usage(response: str) -> List[str]:
     """Detect which tools were likely used based on response content"""
     tools_used = []
     if any(word in response.lower() for word in ['add', 'sum', 'plus', '+']):
-        tools_used.append('➕ Addition')
+        tools_used.append('Addition')
     if any(word in response.lower() for word in ['subtract', 'minus', 'difference', '-']):
-        tools_used.append('➖ Subtraction') 
+        tools_used.append(' Subtraction') 
     if any(word in response.lower() for word in ['multiply', 'times', 'product', '×', '*']):
-        tools_used.append('✖️ Multiplication')
+        tools_used.append(' Multiplication')
     if any(word in response.lower() for word in ['divide', 'division', 'quotient', '÷', '/']):
-        tools_used.append('➗ Division')
+        tools_used.append(' Division')
     return tools_used
 
-# Main chat interface
+
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-# Display welcome message if no chat history
 if not st.session_state.chat_history:
     st.markdown("""
         <div class="welcome-message">
@@ -552,7 +526,7 @@ if not st.session_state.chat_history:
         </div>
     """, unsafe_allow_html=True)
 
-# Display chat history
+
 for i, message in enumerate(st.session_state.chat_history):
     timestamp = datetime.now().strftime("%H:%M")
     
@@ -583,14 +557,13 @@ for i, message in enumerate(st.session_state.chat_history):
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Input section
+
 st.markdown("""
     <div class="input-section">
         <h3>💬 Ask me anything or solve math problems!</h3>
     </div>
 """, unsafe_allow_html=True)
 
-# Create input form
 with st.form(key="chat_form", clear_on_submit=True):
     col1, col2 = st.columns([4, 1])
     
@@ -603,54 +576,44 @@ with st.form(key="chat_form", clear_on_submit=True):
         )
     
     with col2:
-        submit_button = st.form_submit_button("Send 🚀", use_container_width=True)
+        submit_button = st.form_submit_button("Send ", use_container_width=True)
 
-# Process user input (same logic)
 if submit_button and user_input.strip():
-    # Add user message to history
     st.session_state.chat_history.append({
         "role": "user", 
         "content": user_input
     })
     st.session_state.message_count += 1
-    
-    # Show processing indicator
     with st.empty():
         st.markdown("""
             <div class="processing-indicator">
                 🤖 AI is thinking<span class="loading-dots"></span>
             </div>
         """, unsafe_allow_html=True)
-        
-        # Convert chat history to BaseMessage format (same logic)
         messages = []
-        for msg in st.session_state.chat_history[:-1]:  # Exclude the current message
+        for msg in st.session_state.chat_history[:-1]:  
             if msg["role"] == "user":
                 messages.append(HumanMessage(content=msg["content"]))
             else:
                 messages.append(AIMessage(content=msg["content"]))
-        
-        # Get agent response
+
         response = run_agent(user_input, messages)
         
-        # Add agent response to history
         st.session_state.chat_history.append({
             "role": "assistant",
             "content": str(response)
         })
         st.session_state.message_count += 1
-    
-    # Rerun to update display
+
     st.rerun()
 
-# Example queries section
 st.markdown("---")
 st.markdown("## 💡 Example Queries")
 
 example_cols = st.columns(2)
 
 with example_cols[0]:
-    st.markdown("### 🧮 Math Examples")
+    st.markdown("###  Math Examples")
     if st.button("What is 156 + 289?", key="math1"):
         st.session_state.chat_history.extend([
             {"role": "user", "content": "What is 156 + 289?"},
@@ -664,7 +627,7 @@ with example_cols[0]:
         st.rerun()
 
 with example_cols[1]:
-    st.markdown("### ❓ Q&A Examples")
+    st.markdown("###  Q&A Examples")
     if st.button("Explain how photosynthesis works", key="qa1"):
         st.session_state.chat_history.extend([
             {"role": "user", "content": "Explain how photosynthesis works"},
@@ -677,12 +640,3 @@ with example_cols[1]:
         ])
         st.rerun()
 
-# Footer information
-st.markdown("---")
-st.markdown("""
-    <div style="text-align: center; color: #718096; padding: 1rem;">
-        <p>🔥 Powered by <strong>LangGraph</strong> + <strong>Google Gemini</strong> | 
-        Built with <strong>Streamlit</strong> ❤️</p>
-        <p><em>This AI assistant uses advanced tool calling and graph-based workflows for intelligent responses</em></p>
-    </div>
-""", unsafe_allow_html=True)
