@@ -1,66 +1,27 @@
 import streamlit as st
-from crewai import Agent, Task, Crew, Process, LLM
-from langchain_google_genai import ChatGoogleGenerativeAI
+from crewai import Task, Crew, Process
 import os
-import ast
+
+from utils import analyze_python_code
+from agents import code_analyzer, code_corrector, manager
 
 # Set Google API Key
 os.environ["GOOGLE_API_KEY"] = "AIzaSyAC1wHxDXyDGPdBfMvD6H76iA0L7cS7iU8"
 
-# ----- Static Analysis Function -----
-def analyze_python_code(code: str) -> str:
-    try:
-        tree = ast.parse(code)
-        issues = []
-
-        if any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'print' 
-               for node in ast.walk(tree)):
-            issues.append("⚠️ Found `print()` - Use logging in production.")
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ExceptHandler) and node.type is None:
-                issues.append("⚠️ Found bare `except:` - Specify exception types.")
-
-        return "✅ No syntax errors found. Code looks good!" if not issues else "Found issues:\n" + "\n".join(issues)
-    
-    except SyntaxError as e:
-        return f"❌ Syntax Error: {e.msg} (Line {e.lineno})"
-
-# ----- LLM Setup -----
-llm = LLM(
-    api_key="AIzaSyAZtErluhP9-PX-Wd29D_QDWRG7V3xj6io",
-    model="gemini/gemini-2.5-flash"
-)
-
-# ----- Agents -----
-code_analyzer = Agent(
-    role="Python Static Analyzer",
-    goal="Find issues in Python code WITHOUT executing it",
-    backstory="Expert in static code analysis using AST parsing.",
-    llm=llm,
-    verbose=True
-)
-
-code_corrector = Agent(
-    role="Python Code Fixer",
-    goal="Fix issues while keeping original functionality",
-    backstory="Specializes in clean, PEP 8 compliant fixes.",
-    llm=llm,
-    verbose=True
-)
-
-manager = Agent(
-    role="Code Review Manager",
-    goal="Ensure smooth analysis & correction",
-    backstory="Coordinates the review process.",
-    llm=llm,
-    verbose=True
-)
-
 # ----- Streamlit UI -----
 st.set_page_config(page_title="Python Code Reviewer", page_icon="🐍", layout="centered")
 st.title("🐍 AI-Powered Python Code Reviewer")
-st.markdown("Analyze and fix your Python code using AI-powered agents without execution.")
+
+st.markdown(
+    """
+    Welcome to the AI-Powered Python Code Reviewer! This tool helps you analyze and fix your Python code using AI-powered agents without executing the code.
+    
+    **How to use:**
+    1. Paste your Python code in the input box below.
+    2. Click the 'Analyze & Fix Code' button.
+    3. View the analysis results and suggested fixes.
+    """
+)
 
 # Input Section
 with st.expander("📥 Paste Your Python Code", expanded=True):

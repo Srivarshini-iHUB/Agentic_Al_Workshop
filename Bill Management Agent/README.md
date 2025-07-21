@@ -1,103 +1,63 @@
-Sure! Here's a sample **README.md** file for your Streamlit project that uses custom CSS to display chat interactions between user and agent. This README assumes you're building a chat UI or an agent interaction interface.
+# 💼 AI Bill Management Agent
 
----
-
-````markdown
-# 💬 Streamlit Chat UI with Custom Styling
-
-This project showcases a simple and clean chat-like user interface using Streamlit with custom HTML/CSS. It is designed to display user and agent conversations in a visually distinct format.
+An AI-powered Streamlit application that allows users to upload bill images and automatically categorizes expenses into predefined categories using Google Gemini AI. The app provides detailed expense summaries, intelligent insights, and displays agent communication logs for transparency.
 
 ## 🚀 Features
 
-- 📌 Custom font styling using CSS
-- 🤖 Styled chat bubbles for User and Agent
-- 🧱 Responsive layout with rounded containers
-- 🎨 Clean and minimal color themes
-
-## 🖼 Preview
-
-![Preview Screenshot](preview.png) <!-- Replace with actual screenshot path -->
+- Upload bill images (JPG, JPEG, PNG) for processing
+- AI-driven extraction and categorization of expenses into categories such as Groceries, Dining, Utilities, Shopping, Entertainment, Transportation, Healthcare, Education, and Others
+- Calculation of total expenditure, category-wise totals, item counts, and average spending per item
+- AI-generated comprehensive spending analysis with financial insights and recommendations
+- Interactive display of categorized expenses with icons and totals
+- Agent communication logs showing the interaction between user proxy and AI agents
+- Clean, responsive UI with enhanced CSS styling for better user experience
 
 ## 🧰 Requirements
 
 - Python 3.8+
 - Streamlit
+- Google Gemini API key
 
 ## 📦 Installation
 
-1. **Clone the repository:**
+1. Clone the repository:
 
 ```bash
-git clone https://github.com/your-username/streamlit-chat-ui.git
-cd streamlit-chat-ui
-````
+git clone <repository-url>
+cd Bill Management Agent
+```
 
-2. **Install dependencies:**
+2. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. **Run the app:**
+3. Set up environment variables:
+
+Create a `.env` file in the project root with your Google Gemini API key:
+
+```
+GEMINI_API_KEY=your_api_key_here
+```
+
+## 🚀 Usage
+
+Run the Streamlit app:
 
 ```bash
 streamlit run app.py
 ```
 
-## 🧑‍💻 Code Overview
+Upload a bill image in JPG, JPEG, or PNG format. The app will process the image, categorize expenses, and display a detailed summary along with AI-generated insights.
 
-In `app.py`:
+## 🛠️ Technologies Used
 
-```python
-import streamlit as st
-
-st.markdown("""
-    <style>
-        .big-font {
-            font-size: 22px !important;
-            font-weight: 600;
-        }
-        .agent-box {
-            border-radius: 15px;
-            background-color: #f1f1f1;
-            color: black;
-            padding: 15px;
-            margin: 10px 0;
-        }
-        .user {
-            background-color: #e0f7fa;
-            padding: 12px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-        }
-        .agent {
-            background-color: #f3e5f5;
-            padding: 12px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown('<div class="agent-box user big-font">Hello from User</div>', unsafe_allow_html=True)
-st.markdown('<div class="agent-box agent big-font">Hi! I am the Agent.</div>', unsafe_allow_html=True)
-```
-
-## 📝 Customize
-
-You can tweak the following:
-
-* Background color for each role
-* Font size and weight
-* Padding, margin, and border radius
+- [Streamlit](https://streamlit.io/) for the web interface
+- [Google Gemini AI](https://developers.generativeai.google/) for expense extraction and summarization
+- AutoGen agents for managing AI interactions and processing
+- Python libraries: `PIL` for image processing, `dotenv` for environment variables
 
 ---
 
-Made with ❤️ using [Streamlit](https://streamlit.io/)
 
-```
-
----
-
-Let me know if you want a GitHub-ready version with images, demo links, or deployment instructions (like for Streamlit Cloud or Hugging Face Spaces).
-```

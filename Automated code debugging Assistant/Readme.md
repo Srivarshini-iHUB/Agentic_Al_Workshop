@@ -35,6 +35,40 @@ An AI-powered tool that performs **static code analysis** and **auto-corrects Py
 
 ## 🛠️ Installation Guide
 
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 🚀 Usage
+
+1. Clone the repository.
+2. Install dependencies using the installation guide above.
+3. Run the app:
+
+```bash
+streamlit run app.py
+```
+
+4. Open the displayed URL in your browser.
+5. Paste your Python code into the input box.
+6. Click "Analyze & Fix Code" to get analysis and corrections.
+
+---
+
+## 🗂️ Project Structure
+
+- `app.py`: Streamlit UI and main app logic.
+- `utils.py`: Static analysis utility functions.
+- `agents.py`: LLM and CrewAI agent setup.
+
+---
+
+## 💡 Notes
+
+- Ensure your Google API key is set in the environment variable `GOOGLE_API_KEY` (already set in `app.py` for convenience).
+- This tool performs static analysis only; it does not execute your code.
 pip install -r requirements.txt
 
 
