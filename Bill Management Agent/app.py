@@ -1,484 +1,229 @@
 import os
-import streamlit as st
-from dotenv import load_dotenv
-from PIL import Image
-import tempfile
 import json
-import google.generativeai as genai
+import tempfile
+import streamlit as st
+from PIL import Image
+from dotenv import load_dotenv
+import google.generativeai as gemini_sdk
 from autogen.agentchat import UserProxyAgent, AssistantAgent, GroupChat, GroupChatManager
+
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("models/gemini-1.5-flash")
+API_KEY = os.getenv("GEMINI_API_KEY")
+gemini_sdk.configure(api_key=API_KEY)
+gemini = gemini_sdk.GenerativeModel("models/gemini-1.5-flash")
+
 st.set_page_config(
-    page_title="🧾 AI Bill Management Agent", 
+    page_title="📃 Smart Expense Analyzer",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
-    
-    .main-header {
-        text-align: center;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 2rem;
-        border-radius: 15px;
-        margin-bottom: 2rem;
-        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
-    }
-    
-    .main-header h1 {
-        font-size: 2.5rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-    }
-    
-    .main-header p {
-        font-size: 1.1rem;
-        opacity: 0.9;
-        margin: 0;
-    }
-    
-    .upload-section {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        padding: 2rem;
-        border-radius: 15px;
-        text-align: center;
-        margin-bottom: 2rem;
-        box-shadow: 0 8px 32px rgba(240, 147, 251, 0.2);
-    }
-    
-    .upload-section h3 {
-        color: white;
-        font-weight: 600;
-        margin-bottom: 1rem;
-    }
-    
-    .category-card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        border-left: 4px solid #667eea;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        transition: transform 0.2s ease;
-    }
-    
-    .category-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-    }
-    
-    .category-title {
-        font-size: 1.3rem;
-        font-weight: 600;
-        color: #2d3748;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .expense-item {
-        background: #f8fafc;
-        padding: 0.8rem 1rem;
-        margin: 0.5rem 0;
-        border-radius: 8px;
-        border-left: 3px solid #38b2ac;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .expense-name {
-        font-weight: 500;
-        color: #2d3748;
-    }
-    
-    .expense-cost {
-        font-weight: 600;
-        color: #38b2ac;
-        font-size: 1.1rem;
-    }
-    
-    .summary-section {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 2rem;
-        border-radius: 15px;
-        margin: 2rem 0;
-        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
-    }
-    
-    .summary-section h2 {
-        font-weight: 600;
-        margin-bottom: 1rem;
-    }
-    
-    .chat-section {
-        background: #f8fafc;
-        padding: 2rem;
-        border-radius: 15px;
-        margin-top: 2rem;
-    }
-    
-    .chat-message {
-        margin: 1rem 0;
-        padding: 1rem 1.5rem;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
-    
-    .user-message {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        margin-left: 2rem;
-    }
-    
-    .agent-message {
-        background: white;
-        color: #2d3748;
-        margin-right: 2rem;
-        border-left: 4px solid #38b2ac;
-    }
-    
-    .message-sender {
-        font-weight: 600;
-        font-size: 0.9rem;
-        opacity: 0.8;
-        margin-bottom: 0.5rem;
-    }
-    
-    .message-content {
-        font-size: 1rem;
-        line-height: 1.5;
-    }
-    
-    .stats-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin: 2rem 0;
-    }
-    
-    .stat-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        text-align: center;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        border-top: 4px solid #38b2ac;
-    }
-    
-    .stat-number {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #667eea;
-    }
-    
-    .stat-label {
-        font-size: 0.9rem;
-        color: #718096;
-        font-weight: 500;
-        margin-top: 0.5rem;
-    }
-    
-    .processing-spinner {
-        text-align: center;
-        padding: 2rem;
-    }
-    
-    .success-message {
-        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-        color: white;
-        padding: 1rem 1.5rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        font-weight: 500;
-    }
-    
-    .error-message {
-        background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
-        color: white;
-        padding: 1rem 1.5rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        font-weight: 500;
-    }
-    
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    #MainMenu, footer, header {visibility: hidden;}
+    .header { text-align: center; padding: 2rem; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 16px; margin-bottom: 2rem; }
+    .header h1 { font-size: 2.4rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .header p { font-size: 1.1rem; margin: 0; opacity: 0.9; }
+    .upload-box { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 2rem; border-radius: 16px; text-align: center; margin-bottom: 2rem; }
+    .upload-box h3 { color: white; font-weight: 600; margin-bottom: 1rem; }
+    .category-block { background: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1rem; border-left: 4px solid #667eea; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .category-title { font-weight: 600; font-size: 1.2rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; }
+    .expense-entry { display: flex; justify-content: space-between; padding: 0.7rem 1rem; border-radius: 8px; background: #f8fafc; margin-bottom: 0.5rem; border-left: 3px solid #38b2ac; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin: 2rem 0; }
+    .stat-box { background: white; border-top: 4px solid #38b2ac; text-align: center; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    .stat-value { font-size: 2rem; font-weight: bold; color: #667eea; }
+    .stat-label { font-size: 0.9rem; color: #718096; margin-top: 0.5rem; }
+    .ai-summary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2rem; border-radius: 15px; margin: 2rem 0; }
+    .chat-log { background: #f8fafc; padding: 2rem; border-radius: 15px; margin-top: 2rem; }
+    .message { margin: 1rem 0; padding: 1rem 1.5rem; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .from-user { background: linear-gradient(135deg, #667eea, #764ba2); color: white; margin-left: 2rem; }
+    .from-agent { background: white; color: #2d3748; margin-right: 2rem; border-left: 4px solid #38b2ac; }
+    .msg-sender { font-weight: 600; font-size: 0.9rem; opacity: 0.8; margin-bottom: 0.5rem; }
+    .msg-body { font-size: 1rem; line-height: 1.5; }
+    .success { background: linear-gradient(135deg, #48bb78, #38a169); color: white; padding: 1rem; border-radius: 10px; margin: 1rem 0; font-weight: 500; }
+    .error { background: linear-gradient(135deg, #f56565, #e53e3e); color: white; padding: 1rem; border-radius: 10px; margin: 1rem 0; font-weight: 500; }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
-    <div class="main-header">
-        <h1>💼 AI Bill Management Agent</h1>
-        <p>Upload a bill and let AI categorize and analyze your expenses with intelligent insights</p>
+    <div class="header">
+        <h1>📃 Smart Expense Analyzer</h1>
+        <p>Let AI break down your expenses intelligently from a bill image</p>
     </div>
 """, unsafe_allow_html=True)
 
-col1, col2, col3 = st.columns([1, 2, 1])
+middle_column = st.columns([1, 2, 1])[1]
+with middle_column:
+    st.markdown('<div class="upload-box"><h3>🖼 Upload Bill Image</h3></div>', unsafe_allow_html=True)
+    bill_image = st.file_uploader("", type=["jpg", "jpeg", "png"], help="Only JPG, JPEG, PNG files allowed")
 
-with col2:
-    st.markdown("""
-        <div class="upload-section">
-            <h3>📤 Upload Your Bill</h3>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    uploaded_file = st.file_uploader(
-        "", 
-        type=["jpg", "jpeg", "png"],
-        help="Supported formats: JPG, JPEG, PNG"
-    )
+if 'interaction_log' not in st.session_state:
+    st.session_state.interaction_log = []
 
-if 'chat_log' not in st.session_state:
-    st.session_state.chat_log = []
-
-CATEGORY_ICONS = {
-    "Groceries": "🛒",
-    "Dining": "🍽️", 
-    "Utilities": "⚡",
-    "Shopping": "🛍️",
-    "Entertainment": "🎬",
-    "Others": "📦",
-    "Transportation": "🚗",
-    "Healthcare": "🏥",
-    "Education": "📚"
+EXPENSE_ICONS = {
+    "Groceries": "🛒", "Dining": "🍽️", "Utilities": "⚡", "Shopping": "🛍️",
+    "Entertainment": "🎬", "Transportation": "🚗", "Healthcare": "🏥",
+    "Education": "📚", "Others": "📦"
 }
-def process_bill_with_gemini(image_file):
-    """Extract expenses from bill image using Gemini Vision"""
+
+def extract_expenses_from_image(image_file):
     try:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp.write(image_file.read())
-            tmp_path = tmp.name
+            img_path = tmp.name
 
-        image = Image.open(tmp_path)
-
-        response = model.generate_content([
-            """Extract all expenses from this bill image. Group them into categories: 
-            Groceries, Dining, Utilities, Shopping, Entertainment, Transportation, Healthcare, Education, Others. 
-            Return as JSON format like {"category": [{"item": "item_name", "cost": "amount"}]}.
-            Make sure the cost is just the number without currency symbol.""",
-            image
-        ])
-
-        text = response.text.strip()
-        json_start = text.find("{")
-        json_end = text.rfind("}") + 1
-        
-        if json_start != -1 and json_end != -1:
-            data = json.loads(text[json_start:json_end])
-            return data, response.text
-        else:
-            return None, response.text
-            
-    except Exception as e:
-        st.error(f"Error processing bill: {str(e)}")
-        return None, str(e)
-    finally:
-      
-        if 'tmp_path' in locals():
-            os.unlink(tmp_path)
-
-def summarize_expenses_with_gemini(expenses):
-    """Generate expense summary using Gemini"""
-    try:
-        prompt = f"""
-        Analyze the following categorized expenses: {expenses}
-        
-        Provide a comprehensive summary including:
-        1. Total expenditure across all categories
-        2. Individual category totals
-        3. Highest spending category and potential reasons
-        4. Any unusual or noteworthy spending patterns
-        5. Brief financial insights or recommendations
-        
-        Format the response in a clear, readable manner.
+        image = Image.open(img_path)
+        query = """
+        Extract all expenses from this bill image. Group them into categories: 
+        Groceries, Dining, Utilities, Shopping, Entertainment, Transportation, Healthcare, Education, Others. 
+        Return as JSON format like {"category": [{"item": "item_name", "cost": "amount"}]}.
+        Make sure the cost is just the number without currency symbol.
         """
-        
-        response = model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
-        return f"Error generating summary: {str(e)}"
 
-def calculate_expense_stats(categorized_data):
-    """Calculate statistics from categorized expenses"""
-    total_amount = 0
-    category_totals = {}
-    item_count = 0
-    
-    for category, items in categorized_data.items():
-        category_total = 0
+        result = gemini.generate_content([query, image])
+        response_text = result.text.strip()
+        json_start = response_text.find("{")
+        json_end = response_text.rfind("}") + 1
+
+        if json_start != -1 and json_end != -1:
+            return json.loads(response_text[json_start:json_end]), response_text
+        else:
+            return None, response_text
+    except Exception as err:
+        st.error(f"Failed to extract: {err}")
+        return None, str(err)
+    finally:
+        if 'img_path' in locals():
+            os.unlink(img_path)
+
+def generate_expense_summary(data):
+    try:
+        analysis_prompt = f"""
+        Analyze the following categorized expenses: {data}
+        Provide a summary that includes:
+        1. Total expenditure
+        2. Totals per category
+        3. Highest category and possible reasons
+        4. Any outliers or odd patterns
+        5. Brief money-saving tips
+        """
+        summary = gemini.generate_content(analysis_prompt)
+        return summary.text.strip()
+    except Exception as e:
+        return f"Summary Error: {str(e)}"
+
+def compute_statistics(parsed_data):
+    total = 0
+    category_sums = {}
+    count = 0
+
+    for cat, items in parsed_data.items():
+        subtotal = 0
         for item in items:
             try:
-                cost = float(str(item['cost']).replace('₹', '').replace(',', ''))
-                category_total += cost
-                item_count += 1
-            except (ValueError, KeyError):
+                amount = float(str(item['cost']).replace('₹', '').replace(',', ''))
+                subtotal += amount
+                count += 1
+            except Exception:
                 continue
-        
-        if category_total > 0:
-            category_totals[category] = category_total
-            total_amount += category_total
-    
+        if subtotal > 0:
+            category_sums[cat] = subtotal
+            total += subtotal
+
     return {
-        'total_amount': total_amount,
-        'category_totals': category_totals,
-        'item_count': item_count,
-        'category_count': len([c for c in category_totals if category_totals[c] > 0])
+        "total": total,
+        "categories": category_sums,
+        "items": count,
+        "category_count": len(category_sums)
     }
-user_proxy = UserProxyAgent(
-    name="UserProxy",
-    human_input_mode="NEVER",
-    code_execution_config={"use_docker": False},
-    llm_config=False
-)
 
-bill_processing_agent = AssistantAgent(
-    name="BillProcessingAgent",
-    llm_config=False,
-    system_message="You categorize expenses from a bill into standard categories and ensure proper data structure."
-)
+user = UserProxyAgent(name="UserAgent", human_input_mode="NEVER", code_execution_config={"use_docker": False}, llm_config=False)
+processor = AssistantAgent(name="ProcessorAgent", system_message="Categorize expenses into structured data.", llm_config=False)
+analyzer = AssistantAgent(name="SummaryAgent", system_message="Analyze categorized expenses and give insights.", llm_config=False)
+group = GroupChat(agents=[user, processor, analyzer])
+coordinator = GroupChatManager(groupchat=group)
 
-summary_agent = AssistantAgent(
-    name="ExpenseSummarizationAgent", 
-    llm_config=False,
-    system_message="You analyze categorized expenses, provide insights, and summarize spending trends with actionable recommendations."
-)
+if bill_image:
+    st.markdown('<div class="success">✅ Bill uploaded successfully. Processing...</div>', unsafe_allow_html=True)
+    st.image(bill_image, caption="Uploaded Bill", use_column_width=True)
 
-group_chat = GroupChat(agents=[user_proxy, bill_processing_agent, summary_agent])
-manager = GroupChatManager(groupchat=group_chat)
+    with st.spinner("📂 Extracting details..."):
+        parsed, raw = extract_expenses_from_image(bill_image)
 
-if uploaded_file:
-    st.markdown('<div class="success-message">File uploaded successfully! Processing your bill...</div>', 
-                unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image(uploaded_file, caption="Uploaded Bill", use_column_width=True)
- 
-    with st.spinner("🔍 Extracting and categorizing expenses..."):
-        categorized_data, raw_response = process_bill_with_gemini(uploaded_file)
-
-    if not categorized_data:
-        st.markdown('<div class="error-message"> Failed to extract expenses from the bill.</div>', 
-                   unsafe_allow_html=True)
-        with st.expander("View Raw Response"):
-            st.text(raw_response)
+    if not parsed:
+        st.markdown('<div class="error">❌ Failed to extract data from bill.</div>', unsafe_allow_html=True)
+        with st.expander("View raw Gemini output"):
+            st.text(raw)
     else:
-        stats = calculate_expense_stats(categorized_data)
-       
-        st.session_state.chat_log = []
-        
-        user_proxy.send("Bill uploaded and processed", manager)
-        st.session_state.chat_log.append(("UserProxy → GroupManager", "Bill uploaded and processed"))
+        stats = compute_statistics(parsed)
+        st.session_state.interaction_log.clear()
 
-        user_proxy.send(f"Categorized expenses: {categorized_data}", bill_processing_agent)
-        st.session_state.chat_log.append(("UserProxy → BillProcessingAgent", json.dumps(categorized_data, indent=2)))
+        user.send("Bill uploaded", coordinator)
+        st.session_state.interaction_log.append(("UserAgent → GroupManager", "Bill uploaded"))
 
-        bp_response = f" Categorization complete! Successfully processed {stats['item_count']} items across {stats['category_count']} categories."
-        st.session_state.chat_log.append(("BillProcessingAgent", bp_response))
+        user.send(f"Categorized data: {parsed}", processor)
+        st.session_state.interaction_log.append(("UserAgent → ProcessorAgent", json.dumps(parsed, indent=2)))
+        st.session_state.interaction_log.append(("ProcessorAgent", f"Categorized {stats['items']} items into {stats['category_count']} groups."))
 
-        user_proxy.send("Generate comprehensive expense analysis", summary_agent)
-        st.session_state.chat_log.append(("UserProxy → ExpenseSummarizationAgent", "Generate comprehensive expense analysis"))
+        user.send("Analyze categorized expenses", analyzer)
+        st.session_state.interaction_log.append(("UserAgent → SummaryAgent", "Analyze categorized expenses"))
 
-        with st.spinner(" Generating intelligent spending analysis..."):
-            summary = summarize_expenses_with_gemini(categorized_data)
+        with st.spinner("💡 Generating insights..."):
+            summary = generate_expense_summary(parsed)
+        st.session_state.interaction_log.append(("SummaryAgent", summary))
 
-        st.session_state.chat_log.append(("ExpenseSummarizationAgent", summary))
-
+        # Display statistics
         st.markdown(f"""
-            <div class="stats-container">
-                <div class="stat-card">
-                    <div class="stat-number">₹{stats['total_amount']:,.2f}</div>
-                    <div class="stat-label">Total Amount</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{stats['item_count']}</div>
-                    <div class="stat-label">Total Items</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{stats['category_count']}</div>
-                    <div class="stat-label">Categories</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">₹{stats['total_amount']/stats['item_count']:,.2f}</div>
-                    <div class="stat-label">Avg per Item</div>
-                </div>
+            <div class="stat-grid">
+                <div class="stat-box"><div class="stat-value">₹{stats['total']:,.2f}</div><div class="stat-label">Total Spent</div></div>
+                <div class="stat-box"><div class="stat-value">{stats['items']}</div><div class="stat-label">Items</div></div>
+                <div class="stat-box"><div class="stat-value">{stats['category_count']}</div><div class="stat-label">Categories</div></div>
+                <div class="stat-box"><div class="stat-value">₹{stats['total']/stats['items']:,.2f}</div><div class="stat-label">Avg/Item</div></div>
             </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("## 📂 Categorized Expenses")
-        
-        non_empty_categories = {k: v for k, v in categorized_data.items() if v}
-        
-        for category, items in non_empty_categories.items():
-            category_total = sum(float(str(item['cost']).replace('₹', '').replace(',', '')) 
-                               for item in items if 'cost' in item)
-            icon = CATEGORY_ICONS.get(category, "📦")
-            
+        # Expense breakdown
+        st.markdown("## 🗂 Categorized Expenses")
+        for cat, items in {k: v for k, v in parsed.items() if v}.items():
+            cat_sum = sum(float(str(x['cost']).replace('₹', '').replace(',', '')) for x in items if 'cost' in x)
             st.markdown(f"""
-                <div class="category-card">
-                    <div class="category-title">
-                        {icon} {category} 
-                        <span style="margin-left: auto; color: #38b2ac;">₹{category_total:,.2f}</span>
-                    </div>
+                <div class="category-block">
+                    <div class="category-title">{EXPENSE_ICONS.get(cat, '📦')} {cat} <span style="color:#38b2ac;">₹{cat_sum:,.2f}</span></div>
             """, unsafe_allow_html=True)
-            
-            for item in items:
-                if 'item' in item and 'cost' in item:
-                    cost = str(item['cost']).replace('₹', '')
+            for entry in items:
+                if 'item' in entry and 'cost' in entry:
                     st.markdown(f"""
-                        <div class="expense-item">
-                            <span class="expense-name">{item['item']}</span>
-                            <span class="expense-cost">₹{cost}</span>
+                        <div class="expense-entry">
+                            <span>{entry['item']}</span><span>₹{entry['cost']}</span>
                         </div>
                     """, unsafe_allow_html=True)
-            
             st.markdown("</div>", unsafe_allow_html=True)
 
+        # Summary
         st.markdown(f"""
-            <div class="summary-section">
-                <h2>📋 AI Spending Analysis</h2>
-                <div style="font-size: 1.1rem; line-height: 1.6;">
-                    {summary}
-                </div>
+            <div class="ai-summary">
+                <h2>📈 Summary & Recommendations</h2>
+                <div style="font-size: 1.1rem;">{summary}</div>
             </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("""
-            <div class="chat-section">
-                <h2>💬 Agent Communication Logs</h2>
-        """, unsafe_allow_html=True)
-        
-        for sender, message in st.session_state.chat_log:
-            is_user = "UserProxy" in sender
-            message_class = "user-message" if is_user else "agent-message"
-            
+        # Logs
+        st.markdown('<div class="chat-log"><h2>🧠 Agent Communication Logs</h2>', unsafe_allow_html=True)
+        for sender, msg in st.session_state.interaction_log:
+            style = "from-user" if "UserAgent" in sender else "from-agent"
             st.markdown(f"""
-                <div class="chat-message {message_class}">
-                    <div class="message-sender">{sender}</div>
-                    <div class="message-content">{message}</div>
+                <div class="message {style}">
+                    <div class="msg-sender">{sender}</div>
+                    <div class="msg-body">{msg}</div>
                 </div>
             """, unsafe_allow_html=True)
-        
         st.markdown("</div>", unsafe_allow_html=True)
-
 else:
     st.markdown("""
         <div style="text-align: center; padding: 3rem; color: #718096;">
-            <h3>👆 Upload a bill image to get started</h3>
-            <p>Our AI will automatically categorize your expenses and provide intelligent insights</p>
+            <h3>📥 Upload a bill image to begin</h3>
+            <p>AI will read and break down your expenses with actionable insights</p>
         </div>
     """, unsafe_allow_html=True)

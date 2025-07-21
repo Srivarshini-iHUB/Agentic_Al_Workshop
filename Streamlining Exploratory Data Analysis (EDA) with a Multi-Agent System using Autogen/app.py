@@ -11,17 +11,14 @@ from autogen.agentchat import (
 from dotenv import load_dotenv
 load_dotenv()
 
-# ------------------------ API CONFIG ------------------------
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("GEMINI_API_KEY not found in environment variables.")
 genai.configure(api_key=api_key)
 
-# ------------------------ GEMINI CALL ------------------------
 def gemini_call(prompt, model_name="models/gemini-1.5-flash"):
     return genai.GenerativeModel(model_name).generate_content(prompt).text
 
-# ------------------------ AGENT DEFINITIONS ------------------------
 class DataPrepAgent(AssistantAgent):
     def generate_reply(self, messages, sender, config=None):
         df = st.session_state["df"]
@@ -89,62 +86,61 @@ Validate the following data preprocessing code:
 - Suggest corrections if needed."""
         return gemini_call(prompt)
 
-# ------------------------ ADMIN AGENT ------------------------
 admin_agent = UserProxyAgent(
     name="Admin",
     human_input_mode="NEVER",
     code_execution_config=False
 )
 
-# ------------------------ UI CONFIGURATION ------------------------
 st.set_page_config(page_title="📊 Agentic EDA with Gemini", layout="wide")
 
-# Custom CSS
 st.markdown("""
-<style>
-    .title {
-        text-align: center;
-        font-size: 36px;
-        font-weight: bold;
-        margin-bottom: 0;
-        color: #3b82f6;
-    }
-    .subtitle {
-        text-align: center;
-        font-size: 18px;
-        color: #6b7280;
-        margin-top: 0;
-    }
-    .upload-section {
-        border: 1px solid #e5e7eb;
-        padding: 20px;
-        border-radius: 10px;
-        background-color: #f9fafb;
-    }
-    .expander-content {
-        background-color: #f3f4f6;
-        padding: 10px;
-        border-radius: 8px;
-    }
-</style>
+    <style>
+        .title {text-align:center;font-size:3rem;font-weight:700;margin:0;color:#4f46e5;}
+        .subtitle {text-align:center;font-size:1.2rem;margin:0;color:#6b7280;}
+        .upload-box {
+            border: 2px dashed #9ca3af;
+            padding: 30px;
+            border-radius: 12px;
+            background-color: #f9fafb;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .stButton button {
+            background-color: #4f46e5;
+            color: white;
+            padding: 0.6em 1.2em;
+            border-radius: 8px;
+            font-weight: 600;
+            border: none;
+            margin-top: 1em;
+        }
+        .stSpinner {color: #4f46e5;}
+        .stExpanderHeader {
+            font-weight: bold;
+            color: #111827;
+        }
+    </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="title">🔍 Agentic EDA System</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Powered by Gemini + Autogen Multi-Agent Collaboration</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# ------------------------ UPLOAD + PREVIEW ------------------------
 with st.container():
+    st.markdown('<div class="upload-box">', unsafe_allow_html=True)
     st.markdown("### 📁 Upload your dataset (CSV only)")
     uploaded = st.file_uploader("", type=["csv"], label_visibility="collapsed")
+    st.markdown('</div>', unsafe_allow_html=True)
+
     if uploaded:
         df = pd.read_csv(uploaded)
         st.session_state["df"] = df
 
         st.subheader("📄 Dataset Preview")
         st.dataframe(df.head(), use_container_width=True)
-
         st.markdown("---")
+
         if st.button("🚀 Run Agentic EDA"):
             with st.spinner("⚙️ Initializing agents..."):
                 agents = [
@@ -192,4 +188,4 @@ with st.container():
             st.success("✔️ Agentic EDA completed successfully!")
 
     else:
-        st.info("Please upload a CSV file to begin.")
+        st.info("📤 Please upload a CSV file to begin.")

@@ -1,28 +1,34 @@
-import streamlit as st
+import os
 import time
-import google.generativeai as genai
-from autogen import AssistantAgent, UserProxyAgent
-from langchain_google_genai import ChatGoogleGenerativeAI
 import copy
+import streamlit as st
+import google.generativeai as genai
+from langchain_google_genai import ChatGoogleGenerativeAI
+from autogen import AssistantAgent, UserProxyAgent
+from dotenv import load_dotenv
 import os
 
-api_key = "AIzaSyDG-0xIaprzdT70VTf-LnMt62_s-F8SJqA"
-genai.configure(api_key=api_key)
+load_dotenv()
+API_KEY = os.getenv("GEMINI_API_KEY")
 
-CREATOR_SYSTEM_MESSAGE = """
-You are a Content Creator Agent specializing in Generative AI. Your role is to:
-1. Draft clear, concise, and technically accurate content
-2. Revise content based on constructive feedback
-3. Structure output in markdown format
-4. Focus exclusively on content creation (no commentary)
+if not API_KEY:
+    raise EnvironmentError("GEMINI_API_KEY not found in .env file.")
+
+import google.generativeai as genai
+genai.configure(api_key=API_KEY)
+
+CREATOR_SYSTEM_MSG = """
+You are a professional AI Content Creator. You:
+1. Generate markdown-based content clearly and accurately
+2. Organize sections neatly
+3. Avoid commentary—only return content
 """
 
-CRITIC_SYSTEM_MESSAGE = """
-You are a Content Critic Agent evaluating Generative AI content. Your role is to:
-1. Analyze technical accuracy and language clarity
-2. Provide specific, constructive feedback
-3. Identify both strengths and areas for improvement
-4. Maintain professional, objective tone
+CRITIC_SYSTEM_MSG = """
+You are an expert AI Content Critic. You:
+1. Evaluate markdown content based on clarity, technicality, and coherence
+2. Suggest constructive revisions
+3. Highlight issues in structure or completeness
 """
 
 class GeminiAgent:
@@ -31,157 +37,130 @@ class GeminiAgent:
         self.system_message = system_message
 
     def generate(self, prompt):
-        full_prompt = self.system_message + "\n\n" + prompt
+        full_prompt = f"{self.system_message}\n\n{prompt}"
         try:
-            response = self.model.invoke(full_prompt)
-            return response.content
+            return self.model.invoke(full_prompt).content
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"❌ Error: {str(e)}"
 
     def __deepcopy__(self, memo):
         return GeminiAgent(
-            model=ChatGoogleGenerativeAI(model=self.model.model, google_api_key=api_key),
+            model=ChatGoogleGenerativeAI(model=self.model.model, google_api_key=API_KEY),
             system_message=self.system_message
         )
 
-creator_model = GeminiAgent(
-    model=ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key),
-    system_message=CREATOR_SYSTEM_MESSAGE
+
+creator_agent = GeminiAgent(
+    model=ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=API_KEY),
+    system_message=CREATOR_SYSTEM_MSG
 )
 
-critic_model = GeminiAgent(
-    model=ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key),
-    system_message=CRITIC_SYSTEM_MESSAGE
+critic_agent = GeminiAgent(
+    model=ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=API_KEY),
+    system_message=CRITIC_SYSTEM_MSG
 )
 
-st.set_page_config(page_title="🤖 Agentic Content Refinement", layout="wide")
+st.set_page_config(page_title="🧠 AI Agent Refinement", layout="wide", page_icon="🤖")
 
 st.markdown("""
     <style>
-        .main-title {
-            text-align: center;
-            font-size: 36px;
-            font-weight: bold;
-            color: #3b82f6;
-        }
-        .subtitle {
-            text-align: center;
-            font-size: 18px;
-            color: #6b7280;
-            margin-bottom: 20px;
-        }
-        .turn-title {
-            margin-top: 20px;
-            font-size: 20px;
-            font-weight: 600;
-            color: #10b981;
-        }
-        .final-section {
-            background-color: #f3f4f6;
-            padding: 15px;
-            border-radius: 8px;
-        }
+        .section-title { font-size: 28px; font-weight: bold; color: #3b82f6; margin-bottom: 10px; }
+        .agent-block { background-color: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .creator { border-left: 5px solid #3b82f6; }
+        .critic { border-left: 5px solid #ef4444; }
+        .final-output { background-color: #f3f4f6; padding: 20px; border-radius: 10px; border: 1px solid #d1d5db; }
+        .badge { display: inline-block; background-color: #10b981; color: white; padding: 3px 10px; font-size: 12px; border-radius: 999px; }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title"> Agentic AI Content Refinement</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Simulated Collaboration Between Creator & Critic Agents</div>', unsafe_allow_html=True)
-st.markdown("---")
+st.markdown("<div class='section-title'>🤖 Agentic AI Content Refinement</div>", unsafe_allow_html=True)
+st.caption("Simulated collaboration between AI Creator and Critic agents using Google Gemini")
 
-topic = st.text_input(" Discussion Topic", "Agentic AI")
-turns = st.slider(" Conversation Turns", 3, 5, 3)
-generate_btn = st.button(" Start Simulation")
+st.markdown("### 📌 Configuration")
+col1, col2 = st.columns(2)
+with col1:
+    topic = st.text_input("💡 Enter a Topic", value="Agentic AI", placeholder="e.g. Prompt Engineering, AI Ethics")
+with col2:
+    num_turns = st.slider("🔄 Number of Turns", min_value=3, max_value=5, value=3)
 
-if generate_btn:
+run_simulation = st.button("🚀 Start Simulation")
+
+if run_simulation:
     creator = AssistantAgent(
         name="Creator",
-        system_message=CREATOR_SYSTEM_MESSAGE,
+        system_message=CREATOR_SYSTEM_MSG,
         llm_config={
-            "config_list": [
-                {
-                    "model": "gemini-1.5-flash",
-                    "api_key": api_key,
-                    "base_url": "https://generativelanguage.googleapis.com/v1beta/models/"
-                }
-            ],
-            "timeout": 120
+            "config_list": [{"model": "gemini-1.5-flash", "api_key": API_KEY}],
+            "timeout": 90
         },
         human_input_mode="NEVER",
-        is_termination_msg=lambda x: "TERMINATE" in x.get("content", ""),
+        is_termination_msg=lambda x: "TERMINATE" in x.get("content", "")
     )
 
     critic = AssistantAgent(
         name="Critic",
-        system_message=CRITIC_SYSTEM_MESSAGE,
+        system_message=CRITIC_SYSTEM_MSG,
         llm_config={
-            "config_list": [
-                {
-                    "model": "gemini-1.5-flash",
-                    "api_key": api_key,
-                    "base_url": "https://generativelanguage.googleapis.com/v1beta/models/"
-                }
-            ],
-            "timeout": 120
+            "config_list": [{"model": "gemini-1.5-flash", "api_key": API_KEY}],
+            "timeout": 90
         },
         human_input_mode="NEVER",
-        is_termination_msg=lambda x: "TERMINATE" in x.get("content", ""),
+        is_termination_msg=lambda x: "TERMINATE" in x.get("content", "")
     )
 
-    user_proxy = UserProxyAgent(
-        name="User_Proxy",
-        human_input_mode="NEVER",
-        max_consecutive_auto_reply=0,
-        code_execution_config=False,
-    )
+    user_proxy = UserProxyAgent(name="User_Proxy", human_input_mode="NEVER", max_consecutive_auto_reply=0)
 
-    conversation_history = []
     creator_output = ""
     critic_feedback = ""
+    history = []
 
-    for turn in range(1, turns + 1):
-        with st.status(f" Turn {turn} in progress...", expanded=False):
+    for turn in range(1, num_turns + 1):
+        with st.status(f"🔁 Turn {turn} running...", expanded=False):
             if turn % 2 == 1:
-                st.markdown(f'<div class="turn-title"> Turn {turn}: Content Creator</div>', unsafe_allow_html=True)
-                if turn == 1:
-                    prompt = f"Draft comprehensive content about **{topic}** in markdown format covering:\n- Key concepts\n- Technical foundations\n- Real-world applications\n- Future implications"
-                else:
-                    prompt = f"Revise this content based on the critic's feedback:\n\n{critic_feedback}\n\nCurrent content:\n{creator_output}\n\nProvide improved markdown content:"
-
-                st.markdown("** Prompt:**")
+                st.markdown(f"<div class='agent-block creator'><strong>🧠 Creator Turn {turn}</strong>", unsafe_allow_html=True)
+                prompt = (
+                    f"Draft comprehensive markdown content about **{topic}** covering:\n"
+                    "- Key Concepts\n- Technical Foundations\n- Applications\n- Future Outlook"
+                    if turn == 1 else
+                    f"Revise the following markdown content based on critic feedback:\n\nFeedback:\n{critic_feedback}\n\nCurrent Content:\n{creator_output}"
+                )
                 st.code(prompt, language="markdown")
-
-                creator_output = creator_model.generate(prompt)
-
-                st.markdown("** Generated Content:**")
+                creator_output = creator_agent.generate(prompt)
+                st.markdown("##### 📝 Generated Content")
                 st.markdown(creator_output, unsafe_allow_html=True)
-                conversation_history.append(("Creator", creator_output))
+                st.markdown("</div>", unsafe_allow_html=True)
+                history.append((f"Creator Turn {turn}", creator_output))
+
             else:
-                st.markdown(f'<div class="turn-title">Turn {turn}: Content Critic</div>', unsafe_allow_html=True)
-                prompt = f"""Evaluate this content based on:\n
-1. Technical accuracy\n
-2. Clarity of explanations\n
-3. Depth of coverage\n
-4. Suggestions for improvement\n
-\nContent:\n{creator_output}"""
+                st.markdown(f"<div class='agent-block critic'><strong>🧐 Critic Turn {turn}</strong>", unsafe_allow_html=True)
+                prompt = f"""
+Evaluate this markdown content based on:
+1. Technical Accuracy
+2. Clarity & Structure
+3. Suggestions for Improvement
 
-                st.markdown("** Prompt:**")
+Content:
+{creator_output}
+"""
                 st.code(prompt, language="markdown")
-
-                critic_feedback = critic_model.generate(prompt)
-
-                st.markdown("**Feedback:**")
+                critic_feedback = critic_agent.generate(prompt)
+                st.markdown("##### 📋 Critic Feedback")
                 st.markdown(critic_feedback, unsafe_allow_html=True)
-                conversation_history.append(("Critic", critic_feedback))
+                st.markdown("</div>", unsafe_allow_html=True)
+                history.append((f"Critic Turn {turn}", critic_feedback))
 
             time.sleep(1)
-    st.markdown("---")
-    st.markdown("##  Final Creator Output")
-    st.markdown('<div class="final-section">', unsafe_allow_html=True)
-    st.markdown(creator_output, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("---")
-    st.markdown("##  Full Conversation History")
-    for i, (role, content) in enumerate(conversation_history, 1):
-        with st.expander(f"{role} - Turn {i}"):
+    st.markdown("### ✅ Final Content Output")
+    st.markdown("<div class='final-output'>", unsafe_allow_html=True)
+    st.markdown(f"<span class='badge'>Final Revision</span>", unsafe_allow_html=True)
+    st.markdown(creator_output, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("### 📚 Full Interaction Log")
+    for idx, (role, content) in enumerate(history, 1):
+        with st.expander(f"{role}"):
             st.markdown(content, unsafe_allow_html=True)
+
+    if st.button("🔁 Start Over"):
+        st.experimental_rerun()

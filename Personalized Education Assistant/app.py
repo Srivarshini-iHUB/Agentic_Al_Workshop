@@ -1,381 +1,244 @@
 import os
 import json
+import requests
+import re
 from typing import List, Dict, Any
 from dotenv import load_dotenv
+import streamlit as st
 from pydantic import BaseModel, Field
 from crewai import Agent, Task, Crew
 import google.generativeai as genai
-import requests
-import re
-import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-# Load environment variables
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")
 
-# Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
-
-# Initialize Gemini LLM for CrewAI
-gemini_llm = ChatGoogleGenerativeAI(
+llm_model = genai.GenerativeModel("gemini-1.5-flash")
+gemini_agent_llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash",
     google_api_key=GEMINI_API_KEY,
     temperature=0.7
 )
 
-# Helper Functions
-def search_learning_materials(topic: str) -> Dict[str, Any]:
-    """Search for learning materials on a given topic."""
+# --------------------------------------
+# 🧠 Helper Logic
+# --------------------------------------
+
+def fetch_resources(topic: str) -> Dict[str, Any]:
+    """Fetch videos, articles, and exercises related to the topic."""
     try:
-        url = "https://google.serper.dev/search"
+        base_url = "https://google.serper.dev/search"
         headers = {"X-API-KEY": SERPER_API_KEY}
         
-        # Search for videos
-        video_query = f"{topic} tutorial video"
-        video_results = requests.post(url, json={"q": video_query}, headers=headers).json()
+        def fetch(q):
+            return requests.post(base_url, json={"q": q}, headers=headers).json().get("organic", [])[:3]
         
-        # Search for articles
-        article_query = f"{topic} guide article"
-        article_results = requests.post(url, json={"q": article_query}, headers=headers).json()
-        
-        # Search for exercises
-        exercise_query = f"{topic} practice exercises"
-        exercise_results = requests.post(url, json={"q": exercise_query}, headers=headers).json()
-        
-        videos = []
-        articles = []
-        exercises = []
-        
-        # Extract videos
-        for v in video_results.get("organic", [])[:3]:
-            videos.append(f"{v['title']}: {v['link']}")
-        
-        # Extract articles
-        for a in article_results.get("organic", [])[:3]:
-            articles.append(f"{a['title']}: {a['link']}")
-            
-        # Extract exercises
-        for e in exercise_results.get("organic", [])[:3]:
-            exercises.append(f"{e['title']}: {e['link']}")
-        
+        result = {
+            "videos": [f"{item['title']}: {item['link']}" for item in fetch(f"{topic} tutorial video")],
+            "articles": [f"{item['title']}: {item['link']}" for item in fetch(f"{topic} guide article")],
+            "exercises": [f"{item['title']}: {item['link']}" for item in fetch(f"{topic} practice exercises")]
+        }
+        return {"topic": topic, **result}
+
+    except Exception as err:
         return {
             "topic": topic,
-            "videos": videos,
-            "articles": articles,
-            "exercises": exercises
-        }
-    except Exception as e:
-        return {
-            "topic": topic,
-            "videos": [f"Error searching videos: {str(e)}"],
-            "articles": [f"Error searching articles: {str(e)}"],
-            "exercises": [f"Error searching exercises: {str(e)}"]
+            "videos": [f"Error: {str(err)}"],
+            "articles": [f"Error: {str(err)}"],
+            "exercises": [f"Error: {str(err)}"]
         }
 
-def generate_quiz_questions(topic: str) -> List[Dict[str, Any]]:
-    """Generate quiz questions on a given topic."""
+def create_mcqs(topic: str) -> List[Dict[str, Any]]:
+    """Create multiple-choice questions using Gemini."""
     try:
-        prompt = f"""Create 3 multiple-choice questions about {topic}. Format each question as follows:
-
-Question: [Your question here]
-A) [Option A]
-B) [Option B]
-C) [Option C]
-D) [Option D]
-Answer: [Correct option letter]
-
-Make sure the questions are clear and educational."""
-        
-        response = model.generate_content(prompt).text
-        questions = []
-        
-        # Parse the response
-        question_blocks = response.split("Question:")
-        for block in question_blocks[1:]:  # Skip first empty element
-            lines = [line.strip() for line in block.strip().split("\n") if line.strip()]
-            if len(lines) >= 6:
-                question = lines[0]
-                options = []
-                answer_line = ""
-                
-                for line in lines[1:]:
-                    if line.startswith(('A)', 'B)', 'C)', 'D)')):
-                        options.append(line[3:].strip())
-                    elif line.startswith("Answer:"):
-                        answer_line = line.split(":")[-1].strip()
-                
-                if len(options) == 4 and answer_line:
-                    # Convert answer letter to actual answer text
-                    answer_index = ord(answer_line.upper()) - ord('A')
-                    if 0 <= answer_index < 4:
-                        questions.append({
-                            "question": question,
-                            "options": options,
-                            "answer": options[answer_index]
-                        })
-        
-        return questions[:3]
-    except Exception as e:
-        return [{"question": f"Error generating quiz: {str(e)}", "options": ["Error", "Error", "Error", "Error"], "answer": "Error"}]
-
-def suggest_projects(topic: str, level: str) -> List[Dict[str, Any]]:
-    """Generate project ideas based on topic and expertise level."""
-    try:
-        prompt = f"""Suggest 3 practical project ideas for someone at a {level} level learning about {topic}.
-For each project, provide:
-- A clear title
-- A detailed description explaining what the project involves
-- Why it's suitable for {level} level
-
-Format each project as:
-Project: [Title]
-Description: [Detailed description]
+        prompt = f"""
+Create 3 multiple-choice questions on {topic}:
+Question: ...
+A) ...
+B) ...
+C) ...
+D) ...
+Answer: [A/B/C/D]
 """
-        
-        response = model.generate_content(prompt).text
-        projects = []
-        
-        # Parse the response
-        project_blocks = response.split("Project:")
-        for block in project_blocks[1:]:  # Skip first empty element
+        output = llm_model.generate_content(prompt).text
+        blocks = output.split("Question:")[1:]
+        questions = []
+
+        for block in blocks:
             lines = [line.strip() for line in block.strip().split("\n") if line.strip()]
-            
-            title = lines[0] if lines else "Untitled Project"
-            description = ""
-            
-            for line in lines[1:]:
-                if line.startswith("Description:"):
-                    description = line.split(":", 1)[1].strip()
-                    break
-            
-            if description:
-                projects.append({
-                    "title": title,
-                    "description": description,
-                    "level": level
-                })
+            if len(lines) < 5:
+                continue
+            q_text = lines[0]
+            options = [line[3:].strip() for line in lines[1:5]]
+            correct_letter = next((line.split(":")[-1].strip() for line in lines if line.startswith("Answer:")), None)
+            correct = options[ord(correct_letter.upper()) - ord('A')] if correct_letter else "Unknown"
+            questions.append({"question": q_text, "options": options, "answer": correct})
         
-        return projects[:3]
-    except Exception as e:
-        return [{"title": f"Error generating projects: {str(e)}", "description": "Unable to generate project suggestions", "level": level}]
+        return questions
 
-# Agents without tools - they will use the functions directly
-learning_agent = Agent(
-    role="Learning Material Curator",
-    goal="Find the best learning resources for a given topic using web search",
-    backstory="""You are an expert researcher with years of experience in educational content curation. 
-    You excel at finding diverse learning materials including videos, articles, and practical exercises.
-    You have access to web search capabilities to find current and relevant learning materials.""",
-    llm=gemini_llm,
-    verbose=True
-)
+    except Exception as err:
+        return [{"question": "Error generating questions", "options": [], "answer": str(err)}]
 
-quiz_agent = Agent(
-    role="Quiz Master",
-    goal="Create effective assessment quizzes for learning topics",
-    backstory="""You are specialized in educational assessment and test creation. 
-    You create engaging multiple-choice questions that test understanding and promote learning.
-    You can generate high-quality quiz questions on any topic.""",
-    llm=gemini_llm,
-    verbose=True
-)
-
-project_agent = Agent(
-    role="Project Mentor",
-    goal="Suggest practical projects matching skill levels",
-    backstory="""You are experienced in curriculum development and project-based learning. 
-    You design hands-on projects that reinforce learning and build practical skills.
-    You can suggest projects appropriate for different skill levels.""",
-    llm=gemini_llm,
-    verbose=True
-)
-
-# Tasks with detailed descriptions
-def create_learning_task(topic: str):
-    return Task(
-        description=f"""Search for comprehensive learning materials about '{topic}'. 
-        Find videos, articles, and exercises that would help someone learn this topic effectively.
-        
-        Use web search to find:
-        1. Educational videos and tutorials
-        2. Articles and guides
-        3. Practice exercises and examples
-        
-        Return the results in a structured format with titles and links.""",
-        agent=learning_agent,
-        expected_output=f"""A comprehensive list of learning materials for {topic} including:
-        - Videos: List of educational videos with titles and links
-        - Articles: List of articles and guides with titles and links  
-        - Exercises: List of practice exercises with titles and links"""
-    )
-
-def create_quiz_task(topic: str):
-    return Task(
-        description=f"""Create a quiz about '{topic}' with 3 multiple-choice questions. 
-        Make sure the questions are educational and test important concepts.
-        
-        Each question should have:
-        - A clear question
-        - 4 multiple choice options (A, B, C, D)
-        - The correct answer indicated
-        
-        Focus on testing understanding rather than memorization.""",
-        agent=quiz_agent,
-        expected_output=f"""A set of 3 quality multiple-choice questions about {topic}, each with:
-        - Question text
-        - 4 answer options
-        - Correct answer identified"""
-    )
-
-def create_project_task(topic: str, level: str):
-    return Task(
-        description=f"""Suggest 3 practical project ideas about '{topic}' suitable for {level} level learners. 
-        Each project should have a clear title and detailed description.
-        
-        Consider the {level} skill level when designing projects:
-        - Beginner: Simple, guided projects with clear steps
-        - Intermediate: Projects requiring some independent thinking
-        - Advanced: Complex projects requiring expertise and creativity
-        
-        Each project should be practical and help reinforce learning.""",
-        agent=project_agent,
-        expected_output=f"""3 practical project ideas for {level} level learners about {topic}, each with:
-        - Project title
-        - Detailed description
-        - Why it's suitable for {level} level"""
-    )
-
-# Execution function
-def generate_learning_path(topic: str, level: str):
-    """Generate a complete learning path for the given topic and level."""
-    
+def recommend_projects(topic: str, level: str) -> List[Dict[str, Any]]:
+    """Generate practical project suggestions for a topic and skill level."""
     try:
-        # Directly call helper functions
-        learning_materials = search_learning_materials(topic)
-        quiz_questions = generate_quiz_questions(topic)
-        project_ideas = suggest_projects(topic, level)
+        prompt = f"""Suggest 3 {level}-level projects on {topic}. Include:
+- Project title
+- Description explaining the project and why it fits the level
+Format:
+Project: ...
+Description: ...
+"""
+        response = llm_model.generate_content(prompt).text
+        projects = []
+        for block in response.split("Project:")[1:]:
+            lines = block.strip().split("\n")
+            title = lines[0].strip()
+            desc = next((l.split(":", 1)[-1].strip() for l in lines if l.startswith("Description:")), "")
+            projects.append({"title": title, "description": desc, "level": level})
+        return projects
 
-        return {
-            "learning_materials": learning_materials,
-            "quiz_questions": quiz_questions,
-            "project_ideas": project_ideas
-        }
-    except Exception as e:
-        st.error(f"❌ Error generating content: {str(e)}")
-        return {
-            "learning_materials": {},
-            "quiz_questions": [],
-            "project_ideas": []
-        }
+    except Exception as err:
+        return [{"title": "Error generating projects", "description": str(err), "level": level}]
 
-# Streamlit UI
-def main():
-    st.set_page_config(page_title="Personalized Learning Assistant", page_icon="🎓", layout="wide")
+# --------------------------------------
+# 🧩 Crew Agents (Gemini)
+# --------------------------------------
+
+learning_curator = Agent(
+    role="Learning Curator",
+    goal="Research high-quality resources for self-learning",
+    backstory="Expert in discovering curated video, article, and practice materials.",
+    llm=gemini_agent_llm,
+    verbose=True
+)
+
+quiz_master = Agent(
+    role="Assessment Creator",
+    goal="Formulate MCQs for conceptual understanding",
+    backstory="Specialist in instructional content with deep testing strategies.",
+    llm=gemini_agent_llm,
+    verbose=True
+)
+
+project_mentor = Agent(
+    role="Project Mentor",
+    goal="Suggest hands-on learning projects",
+    backstory="Veteran mentor creating realistic projects for all learner levels.",
+    llm=gemini_agent_llm,
+    verbose=True
+)
+
+# --------------------------------------
+# 🛠️ Task Wrappers
+# --------------------------------------
+
+def build_learning_task(topic: str) -> Task:
+    return Task(
+        description=f"Gather top learning resources (videos, articles, exercises) about '{topic}'",
+        expected_output="A structured list with 3 items in each category with links",
+        agent=learning_curator
+    )
+
+def build_quiz_task(topic: str) -> Task:
+    return Task(
+        description=f"Generate 3 educational multiple-choice questions on '{topic}'",
+        expected_output="Each question must have 4 options and 1 correct answer",
+        agent=quiz_master
+    )
+
+def build_project_task(topic: str, level: str) -> Task:
+    return Task(
+        description=f"Suggest 3 practical projects for {level} learners on '{topic}'",
+        expected_output="Project title, description, and suitability for level",
+        agent=project_mentor
+    )
+
+# --------------------------------------
+# 🎯 Generate Learning Path
+# --------------------------------------
+
+def build_learning_path(topic: str, level: str) -> Dict[str, Any]:
+    try:
+        return {
+            "resources": fetch_resources(topic),
+            "quizzes": create_mcqs(topic),
+            "projects": recommend_projects(topic, level)
+        }
+    except Exception as err:
+        st.error(f"Failed to build path: {err}")
+        return {"resources": {}, "quizzes": [], "projects": []}
+
+# --------------------------------------
+# 🌐 Streamlit UI
+# --------------------------------------
+
+def run_ui():
+    st.set_page_config("🧠 Learning Path Generator", layout="wide")
+    st.title("🎓 Personalized Learning Companion")
+    st.markdown("Generate learning materials, quizzes, and projects based on your topic and level.")
     
-    st.title("🎓 Personalized Learning Assistant")
-    st.markdown("Generate comprehensive learning materials, quizzes, and project ideas for any topic!")
-    st.markdown("---")
+    if not GEMINI_API_KEY or not SERPER_API_KEY:
+        st.error("Please set GEMINI_API_KEY and SERPER_API_KEY in your environment.")
+        return
     
-    # Check for API keys
-    if not GEMINI_API_KEY:
-        st.error("⚠️ Please set your GEMINI_API_KEY in the environment variables.")
-        st.stop()
-    
-    if not SERPER_API_KEY:
-        st.error("⚠️ Please set your SERPER_API_KEY in the environment variables.")
-        st.stop()
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        topic = st.text_input("📚 Enter your learning topic:", placeholder="e.g., Machine Learning, Python, Data Science")
-    
-    with col2:
-        level = st.selectbox("📊 Select your skill level:", ["Beginner", "Intermediate", "Advanced"])
-    
-    if st.button("🚀 Generate Learning Path", type="primary"):
+    with st.sidebar:
+        st.image("https://cdn-icons-png.flaticon.com/512/5977/5977577.png", width=100)
+        st.markdown("## 🔍 Get Started")
+        topic = st.text_input("📝 Topic to Learn", placeholder="e.g., Data Structures")
+        level = st.selectbox("📊 Your Proficiency", ["Beginner", "Intermediate", "Advanced"])
+        start = st.button("🚀 Generate Learning Path")
+
+    if start:
         if not topic.strip():
-            st.error("Please enter a topic to learn about.")
+            st.warning("Topic is required.")
             return
         
-        with st.spinner("🔍 Creating your personalized learning path..."):
-            result = generate_learning_path(topic, level)
-            
-            if result:
-                st.success("✅ Learning path generated successfully!")
+        with st.spinner("Creating personalized learning experience..."):
+            result = build_learning_path(topic, level)
+
+        st.success("✅ Learning Path Ready!")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("🎥 Videos", len(result["resources"].get("videos", [])))
+        col2.metric("📄 Articles", len(result["resources"].get("articles", [])))
+        col3.metric("🚀 Projects", len(result["projects"]))
+
+        tab1, tab2, tab3 = st.tabs(["📚 Resources", "📝 Quizzes", "💡 Projects"])
+
+        with tab1:
+            st.subheader("🎥 Videos")
+            for item in result["resources"].get("videos", []):
+                st.write(f"- {item}")
+
+            st.subheader("📄 Articles")
+            for item in result["resources"].get("articles", []):
+                st.write(f"- {item}")
+
+            st.subheader("💪 Exercises")
+            for item in result["resources"].get("exercises", []):
+                st.write(f"- {item}")
+
+        with tab2:
+            st.subheader("📝 Quiz Questions")
+            for idx, q in enumerate(result["quizzes"], 1):
+                st.markdown(f"**Q{idx}. {q['question']}**")
+                for i, opt in enumerate(q["options"]):
+                    st.write(f"  {chr(65+i)}) {opt}")
+                st.success(f"✅ Correct Answer: {q['answer']}")
                 st.markdown("---")
-                
-                # Display results in tabs
-                tab1, tab2, tab3 = st.tabs(["📚 Learning Materials", "📝 Quiz", "🚀 Project Ideas"])
-                
-                with tab1:
-                    st.subheader("📚 Learning Materials")
-                    
-                    learning_materials = result.get("learning_materials", {})
-                    
-                    if learning_materials.get("videos"):
-                        st.markdown("### 🎥 Videos")
-                        for video in learning_materials["videos"]:
-                            st.write(f"• {video}")
-                    
-                    if learning_materials.get("articles"):
-                        st.markdown("### 📄 Articles")
-                        for article in learning_materials["articles"]:
-                            st.write(f"• {article}")
-                    
-                    if learning_materials.get("exercises"):
-                        st.markdown("### 💪 Exercises")
-                        for exercise in learning_materials["exercises"]:
-                            st.write(f"• {exercise}")
-                
-                with tab2:
-                    st.subheader("📝 Quiz Questions")
-                    
-                    quiz_questions = result.get("quiz_questions", [])
-                    
-                    if quiz_questions:
-                        for i, q in enumerate(quiz_questions, 1):
-                            st.markdown(f"**Question {i}: {q['question']}**")
-                            for j, option in enumerate(q['options'], 1):
-                                st.write(f"   {chr(64+j)}) {option}")
-                            st.write(f"**✅ Correct Answer:** {q['answer']}")
-                            st.markdown("---")
-                    else:
-                        st.write("No quiz questions generated.")
-                
-                with tab3:
-                    st.subheader("🚀 Project Ideas")
-                    
-                    project_ideas = result.get("project_ideas", [])
-                    
-                    if project_ideas:
-                        for i, project in enumerate(project_ideas, 1):
-                            st.markdown(f"### Project {i}: {project['title']}")
-                            st.write(f"**Description:** {project['description']}")
-                            st.write(f"**Level:** {project['level']}")
-                            st.markdown("---")
-                    else:
-                        st.write("No project ideas generated.")
-                
-                # Optional: Show raw crew result
-                if result.get("raw_result"):
-                    with st.expander("🔍 View Raw AI Output"):
-                        st.text(str(result["raw_result"]))
-    
+
+        with tab3:
+            st.subheader("💡 Project Ideas")
+            for i, project in enumerate(result["projects"], 1):
+                st.markdown(f"### {i}. {project['title']}")
+                st.write(project["description"])
+                st.info(f"Level: {project['level']}")
+                st.markdown("---")
+
     st.markdown("---")
-    st.markdown(
-        """
-        <div style='text-align: center; color: #666;'>
-            <p>🤖 Powered by Google Gemini AI | 🔍 Web Search via Serper API</p>
-            <p>💡 This tool generates learning materials, quizzes, and project ideas for any topic</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    st.caption("Built with 💻 using Gemini AI + Serper API")
 
 if __name__ == "__main__":
-    main()
+    run_ui()

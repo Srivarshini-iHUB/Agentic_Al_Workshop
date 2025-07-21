@@ -1,56 +1,91 @@
 import streamlit as st
 from crewai import Task, Crew, Process
 import os
-from utils import analyze_python_code
 from agents import code_analyzer, code_corrector, manager
-os.environ["GOOGLE_API_KEY"] = "AIzaSyAC1wHxDXyDGPdBfMvD6H76iA0L7cS7iU8"
-st.set_page_config(page_title="Python Code Reviewer", page_icon="🐍", layout="centered")
-st.title("🐍 AI-Powered Python Code Reviewer")
+from dotenv import load_dotenv
 
-st.markdown(
-    """
-    Welcome to the AI-Powered Python Code Reviewer! This tool helps you analyze and fix your Python code using AI-powered agents without executing the code.
-    
-    **How to use:**
-    1. Paste your Python code in the input box below.
-    2. Click the 'Analyze & Fix Code' button.
-    3. View the analysis results and suggested fixes.
-    """
-)
-with st.expander("Paste Your Python Code", expanded=True):
-    code_input = st.text_area("Write or paste your Python code below:", height=300, placeholder="# Your Python code here...")
-if st.button("Analyze & Fix Code"):
+load_dotenv()
+os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_API_KEY")
+
+st.set_page_config(page_title="🐍 Python Code Reviewer", page_icon="🧠", layout="centered")
+
+st.markdown("""
+    <style>
+    .main-title {
+        text-align: center;
+        font-size: 3rem;
+        font-weight: 700;
+        color: #4f46e5;
+        margin-bottom: 0.2em;
+    }
+    .subtitle {
+        text-align: center;
+        font-size: 1.2rem;
+        color: #6b7280;
+        margin-bottom: 2rem;
+    }
+    .stButton>button {
+        background-color: #4f46e5;
+        color: white;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        padding: 0.5em 1em;
+    }
+    .stTextArea textarea {
+        font-family: 'Courier New', monospace;
+        font-size: 1rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="main-title">🐍 AI-Powered Python Code Reviewer</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Gemini + CrewAI to analyze and fix code without running it</div>', unsafe_allow_html=True)
+
+st.markdown("---")
+st.markdown("""
+### 📘 How It Works:
+1. Paste your Python code in the box.
+2. Click **Analyze & Fix Code**.
+3. View the **issues**, **fixes**, and **final result** below.
+""")
+
+with st.expander("✍️ Paste Your Python Code", expanded=True):
+    code_input = st.text_area("Write or paste Python code here:", height=300, placeholder="# Paste your code...")
+
+if st.button("🚀 Analyze & Fix Code"):
     if not code_input.strip():
-        st.warning("Please enter Python code to proceed.")
+        st.warning("⚠️ Please enter Python code to proceed.")
     else:
-        with st.spinner(" Running static analysis and corrections..."):
+        with st.spinner("🧠 Running multi-agent code review..."):
 
-        
             analysis_task = Task(
                 description=f"Analyze this code:\n```python\n{code_input}\n```",
                 agent=code_analyzer,
-                expected_output="List of static analysis issues."
+                expected_output="List of static analysis issues and line-specific feedback."
             )
 
             correction_task = Task(
-                description="Fix all issues found.",
+                description="Fix all the issues found in the code above. Preserve logic. Make the code PEP8 compliant.",
                 agent=code_corrector,
-                expected_output="Corrected Python code with explanations.",
+                expected_output="Rewritten code with fixes and inline comments (if necessary).",
                 context=[analysis_task]
             )
-
             crew = Crew(
                 agents=[code_analyzer, code_corrector, manager],
                 tasks=[analysis_task, correction_task],
                 verbose=True,
                 process=Process.sequential
             )
-
             result = crew.kickoff()
 
-        st.success(" Analysis and Fix Completed!")
-        st.subheader(" Code Review Result")
-        st.code(result, language="python")
+        st.success("✅ Analysis and Fix Completed!")
 
-st.markdown("---")
-st.markdown("💡 _Built using [CrewAI](https://docs.crewai.com) and Gemini for static analysis and code correction._")
+        st.subheader("📄 Code Review Output")
+        with st.expander("🔍 View the full corrected code", expanded=True):
+            st.code(result, language="python")
+
+        st.markdown("---")
+        st.markdown("💡 _This system performs static analysis only and doesn’t execute your code._")
+
+else:
+    st.info("👆 Paste your code above and hit 'Analyze & Fix Code'.")

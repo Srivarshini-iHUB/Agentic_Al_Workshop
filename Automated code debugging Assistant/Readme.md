@@ -10,10 +10,10 @@ An AI-powered tool that performs **static code analysis** and **auto-corrects Py
 
 ## ✨ Key Features
 
-- 🔍 Analyzes Python code using the `ast` module
+- 🔍 Analyzes Python code using the `ast` module for static analysis
 - ⚠️ Detects issues like:
-  - `print()` usage in production
-  - Bare `except:` blocks
+  - `print()` usage in production (encourages use of logging)
+  - Bare `except:` blocks (recommends specifying exception types)
 - 🛠️ Automatically fixes issues using Gemini LLM
 - 💬 Provides natural language explanations
 - 🔒 Static analysis only — **no code execution**
@@ -23,13 +23,13 @@ An AI-powered tool that performs **static code analysis** and **auto-corrects Py
 ## 🧠 Agent Workflow
 
 1. **Analyzer Agent**  
-   Parses the code using AST and identifies potential issues.
+   Parses the code using AST and identifies potential issues, such as print statements and bare except blocks.
 
 2. **Fixer Agent**  
-   Suggests clean, PEP8-compliant corrections using Gemini.
+   Suggests clean, PEP8-compliant corrections using Gemini while preserving original logic.
 
 3. **Manager Agent**  
-   Coordinates the review and fix tasks.
+   Coordinates the review and fix tasks to ensure a smooth workflow.
 
 ---
 
@@ -60,16 +60,11 @@ streamlit run app.py
 ## 🗂️ Project Structure
 
 - `app.py`: Streamlit UI and main app logic.
-- `utils.py`: Static analysis utility functions.
+- `utils.py`: Static analysis utility functions using AST parsing.
 - `agents.py`: LLM and CrewAI agent setup.
 
 ---
 
-## 💡 Notes
-
-- Ensure your Google API key is set in the environment variable `GOOGLE_API_KEY` (already set in `app.py` for convenience).
-- This tool performs static analysis only; it does not execute your code.
-pip install -r requirements.txt
 
 
 

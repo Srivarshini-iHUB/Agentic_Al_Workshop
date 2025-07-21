@@ -2,192 +2,132 @@ import os
 import streamlit as st
 import pdfplumber
 from docx import Document as DocxDocument
-
+from dotenv import load_dotenv
 from langchain_community.vectorstores import FAISS
 from langchain.docstore.document import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langgraph.graph import StateGraph
 from langchain_core.runnables import RunnableLambda
-
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.tools import DuckDuckGoSearchRun
-from dotenv import load_dotenv
 
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
-    raise ValueError("GOOGLE_API_KEY not found in environment variables")
+    raise EnvironmentError("Missing GOOGLE_API_KEY in .env file")
+
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
 embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-search = DuckDuckGoSearchRun()
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+search_tool = DuckDuckGoSearchRun()
 
-def extract_text_from_local_path(path):
-    if path.endswith(".pdf"):
-        with pdfplumber.open(path) as pdf:
-            return "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
-    elif path.endswith(".txt"):
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
-    elif path.endswith(".docx"):
-        doc = DocxDocument(path)
+st.set_page_config(page_title="🧠 Smart Research Companion", layout="wide")
+st.title("🧠 Smart Research Companion")
+st.markdown("An AI-powered assistant using Gemini + LangGraph + Web Search")
+
+def read_text(file_path):
+    if file_path.endswith(".pdf"):
+        with pdfplumber.open(file_path) as pdf:
+            return "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
+    elif file_path.endswith(".docx"):
+        doc = DocxDocument(file_path)
         return "\n".join([p.text for p in doc.paragraphs])
-    return ""
+    elif file_path.endswith(".txt"):
+        with open(file_path, "r", encoding="utf-8") as f:
+            return f.read()
+    else:
+        return ""
 
-def router_agent(state):
-    query = state.get("query", "")
-    route_prompt = PromptTemplate.from_template(
-        "Classify the query into one of [web, rag, llm]:\n\nQuery: {query}\n\nAnswer:"
-    )
-    route_result = (route_prompt | llm).invoke({"query": query}).content.lower()
-    route = "llm"
-    if "web" in route_result:
-        route = "web"
-    elif "rag" in route_result:
-        route = "rag"
-    return {**state, "route": route}
+doc_dir = "data"
+all_texts = []
+if os.path.exists(doc_dir):
+    for file in os.listdir(doc_dir):
+        file_path = os.path.join(doc_dir, file)
+        content = read_text(file_path)
+        if content:
+            all_texts.append(content)
 
-def web_agent(state):
+if all_texts:
+    raw_docs = text_splitter.create_documents(all_texts)
+    vector_db = FAISS.from_documents(raw_docs, embeddings)
+    retriever = vector_db.as_retriever()
+else:
+    fallback = [Document(page_content="LangGraph enables custom multi-agent workflows in Python."),
+                Document(page_content="Gemini 1.5 Flash is optimized for speed and multi-turn summarization.")]
+    vector_db = FAISS.from_documents(fallback, embeddings)
+    retriever = vector_db.as_retriever()
+
+def classify_query(state):
     query = state["query"]
+    classifier_prompt = PromptTemplate.from_template("""Classify this query: '{query}' as one of [search, documents, general]. Reply with the label only.""")
+    response = (classifier_prompt | llm).invoke({"query": query}).content.lower()
+    if "search" in response:
+        return {**state, "route": "search"}
+    elif "document" in response:
+        return {**state, "route": "documents"}
+    else:
+        return {**state, "route": "general"}
+
+def web_search_agent(state):
     try:
-        result = search.run(query)
+        result = search_tool.run(state["query"])
         return {**state, "content": result}
-    except Exception as e:
-        return {**state, "content": f"Web search failed: {str(e)}"}
+    except Exception as err:
+        return {**state, "content": f"Error during web search: {err}"}
 
-def rag_agent(state):
-    query = state["query"]
-    retriever = state["retriever"]
-    qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
-    answer = qa_chain.run(query)
+def document_agent(state):
+    chain = RetrievalQA.from_chain_type(llm=llm, retriever=state["retriever"])
+    answer = chain.run(state["query"])
     return {**state, "content": answer}
 
-def llm_agent(state):
-    query = state["query"]
-    response = llm.invoke(query)
-    return {**state, "content": response.content}
+def general_llm_agent(state):
+    result = llm.invoke(state["query"])
+    return {**state, "content": result.content}
 
-def summarizer_agent(state):
-    content = state["content"]
-    prompt = PromptTemplate.from_template("Summarize clearly and concisely:\n\n{content}")
-    summary = (prompt | llm).invoke({"content": content}).content
-    return {**state, "final": summary}
+def summarize_output(state):
+    summary_prompt = PromptTemplate.from_template("""Summarize the following answer:
 
-def run_langgraph(user_query, retriever):
-    workflow = StateGraph(dict)
-    workflow.set_entry_point("router")
+{content}
 
-    workflow.add_node("router", RunnableLambda(router_agent))
-    workflow.add_node("web", RunnableLambda(web_agent))
-    workflow.add_node("rag", RunnableLambda(rag_agent))
-    workflow.add_node("llm", RunnableLambda(llm_agent))
-    workflow.add_node("summarizer", RunnableLambda(summarizer_agent))
+Provide a brief overview.""")
+    summary = (summary_prompt | llm).invoke({"content": state["content"]})
+    return {**state, "summary": summary.content}
 
-    def router_logic(state): return state["route"]
-    workflow.add_conditional_edges("router", router_logic, {
-        "web": "web",
-        "rag": "rag",
-        "llm": "llm"
+def process_query(query_text, retriever):
+    graph = StateGraph(dict)
+    graph.set_entry_point("router")
+
+    graph.add_node("router", RunnableLambda(classify_query))
+    graph.add_node("search", RunnableLambda(web_search_agent))
+    graph.add_node("documents", RunnableLambda(document_agent))
+    graph.add_node("general", RunnableLambda(general_llm_agent))
+    graph.add_node("summarizer", RunnableLambda(summarize_output))
+
+    graph.add_conditional_edges("router", lambda state: state["route"], {
+        "search": "search",
+        "documents": "documents",
+        "general": "general"
     })
 
-    for node in ["web", "rag", "llm"]:
-        workflow.add_edge(node, "summarizer")
+    for node in ["search", "documents", "general"]:
+        graph.add_edge(node, "summarizer")
 
-    workflow.set_finish_point("summarizer")
-    app = workflow.compile()
-    return app.invoke({"query": user_query, "retriever": retriever})["final"]
+    graph.set_finish_point("summarizer")
+    return graph.compile().invoke({"query": query_text, "retriever": retriever})
 
-st.set_page_config(page_title="🔍 Agentic Research Assistant", layout="centered")
-st.markdown("""
-    <style>
-    .main-title {
-        text-align: center;
-        font-size: 36px;
-        font-weight: 700;
-        margin-bottom: 10px;
-        color: #3b82f6;
-    }
-    .subtitle {
-        text-align: center;
-        font-size: 18px;
-        color: #6b7280;
-    }
-    .status-badge {
-        display: inline-block;
-        background-color: #e0f2fe;
-        color: #0284c7;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 14px;
-        margin-left: 10px;
-    }
-    </style>
-""", unsafe_allow_html=True)
+st.markdown("### Ask a question:")
+user_input = st.text_input("", placeholder="What is Gemini 1.5 used for?", label_visibility="collapsed")
 
-st.markdown('<div class="main-title">Multi-Agent Research Assistant</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">LangGraph + Gemini + FAISS + Web Search + RAG</div>', unsafe_allow_html=True)
-st.markdown("---")
-
-retriever = None
-documents_loaded = False
-loaded_files = []
-
-with st.spinner("Scanning 'data' folder for documents..."):
-    if os.path.exists("data"):
-        all_content = []
-        for filename in os.listdir("data"):
-            filepath = os.path.join("data", filename)
-            if filename.lower().endswith(('.pdf', '.txt', '.docx')):
-                content = extract_text_from_local_path(filepath)
-                if content:
-                    all_content.append(content)
-                    loaded_files.append(filename)
-
-        if all_content:
-            chunks = text_splitter.create_documents(all_content)
-            vectorstore = FAISS.from_documents(chunks, embeddings)
-            retriever = vectorstore.as_retriever()
-            documents_loaded = True
-            st.success(f"Loaded {len(loaded_files)} documents.")
-            with st.expander("View loaded files"):
-                for f in loaded_files:
-                    st.markdown(f"- {f}")
-        else:
-            st.warning("No valid files found in 'data' folder.")
+if st.button("Get Answer"):
+    if not user_input.strip():
+        st.warning("Please enter a valid query.")
     else:
-        st.info(" 'data' folder does not exist.")
-
-if not documents_loaded:
-    st.info("Using fallback knowledge base.")
-    st.markdown('<div class="status-badge">Fallback KB Active</div>', unsafe_allow_html=True)
-    docs = [
-        Document(page_content="LangGraph is a Python framework for agent workflows."),
-        Document(page_content="Gemini 1.5 Flash is fast and great for summarization."),
-    ]
-    vectorstore = FAISS.from_documents(docs, embeddings)
-    retriever = vectorstore.as_retriever()
-
-st.markdown("---")
-
-# User Query Input
-with st.form(key="query_form"):
-    st.markdown("### Ask a question:")
-    query = st.text_input("", placeholder="e.g. What is LangGraph?", label_visibility="collapsed")
-    col1, col2 = st.columns([0.7, 0.3])
-    with col2:
-        submit = st.form_submit_button("Submit")
-
-if submit:
-    if not query.strip():
-        st.warning("Please enter a question.")
-    else:
-        with st.spinner("analysing..."):
-            try:
-                answer = run_langgraph(query, retriever)
-                st.success("Answer generated successfully!")
-                st.markdown("### Answer:")
-                st.write(answer)
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+        with st.spinner("Processing your question..."):
+            result = process_query(user_input, retriever)
+            st.success("Answer ready!")
+            st.markdown("#### Answer")
+            st.write(result.get("content", "No content found."))
+            st.markdown("#### Summary")
+            st.write(result.get("summary", "No summary available."))
