@@ -112,11 +112,11 @@ retriever = None
 documents_loaded = False
 
 # Load local documents
-if os.path.exists("my_docs"):
-    with st.spinner("📂 Loading documents from 'my_docs' folder..."):
+if os.path.exists("data"):
+    with st.spinner("📂 Loading documents from 'data' folder..."):
         all_content = []
-        for filename in os.listdir("my_docs"):
-            filepath = os.path.join("my_docs", filename)
+        for filename in os.listdir("data"):
+            filepath = os.path.join("data", filename)
             if filename.lower().endswith(('.pdf', '.txt', '.docx')):
                 content = extract_text_from_local_path(filepath)
                 if content:
